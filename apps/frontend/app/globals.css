@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Ensure full height layout */
+html, body, #__next {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Prevent scrollbars on the main container */
+.h-screen {
+  height: 100vh;
+  height: 100dvh; /* Dynamic viewport height for mobile */
+}
+
+@layer base {
+  html {
+    font-family: system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-colors duration-200;
+  }
+  
+  .btn-primary {
+    @apply bg-primary-600 text-white hover:bg-primary-700;
+  }
+  
+  .btn-secondary {
+    @apply bg-gray-200 text-gray-800 hover:bg-gray-300;
+  }
+  
+  .btn-success {
+    @apply bg-green-600 text-white hover:bg-green-700;
+  }
+  
+  .btn-danger {
+    @apply bg-red-600 text-white hover:bg-red-700;
+  }
+  
+  .card {
+    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6;
+  }
+  
+  .suggestion-card {
+    @apply border-l-4 p-4 rounded-r-lg;
+  }
+  
+  .suggestion-upsell {
+    @apply border-l-primary-500 bg-primary-50;
+  }
+  
+  .suggestion-cross-sell {
+    @apply border-l-green-500 bg-green-50;
+  }
+  
+  .suggestion-retention {
+    @apply border-l-yellow-500 bg-yellow-50;
+  }
+  
+  .suggestion-new-offer {
+    @apply border-l-purple-500 bg-purple-50;
+  }
+  
+  .suggestion-food-recommendation {
+    @apply border-l-orange-500 bg-orange-50;
+  }
+  
+  .suggestion-promotion {
+    @apply border-l-pink-500 bg-pink-50;
+  }
+  
+  .suggestion-cuisine-suggestion {
+    @apply border-l-green-500 bg-green-50;
+  }
+  
+  .suggestion-empathetic {
+    @apply border-l-pink-500 bg-pink-50;
+  }
+  
+  .suggestion-solution-focused {
+    @apply border-l-blue-500 bg-blue-50;
+  }
+  
+  .suggestion-defensive {
+    @apply border-l-red-500 bg-red-50;
+  }
+  
+  .suggestion-consultative {
+    @apply border-l-indigo-500 bg-indigo-50;
+  }
+  
+  .suggestion-product-recommendation {
+    @apply border-l-purple-500 bg-purple-50;
+  }
+  
+  .suggestion-solution-consultation {
+    @apply border-l-teal-500 bg-teal-50;
+  }
+  
+  .suggestion-business-growth {
+    @apply border-l-emerald-500 bg-emerald-50;
+  }
+  
+  .suggestion-technical-support {
+    @apply border-l-amber-500 bg-amber-50;
+  }
+  
+  .suggestion-pricing-inquiry {
+    @apply border-l-rose-500 bg-rose-50;
+  }
+}

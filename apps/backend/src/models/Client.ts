@@ -1,0 +1,61 @@
+import mongoose, { Document, Schema } from 'mongoose';
+
+export interface IClient extends Document {
+  phoneNumber: string;
+  name?: string;
+  email?: string;
+  company?: string;
+  status: 'prospect' | 'active' | 'converted' | 'inactive';
+  lastCallDate?: Date;
+  totalCalls: number;
+  lastInteraction?: string;
+  notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const ClientSchema = new Schema<IClient>({
+  phoneNumber: {
+    type: String,
+    required: true,
+    unique: true,
+    index: true
+  },
+  name: {
+    type: String,
+    required: false
+  },
+  email: {
+    type: String,
+    required: false
+  },
+  company: {
+    type: String,
+    required: false
+  },
+  status: {
+    type: String,
+    enum: ['prospect', 'active', 'converted', 'inactive'],
+    default: 'prospect'
+  },
+  lastCallDate: {
+    type: Date,
+    required: false
+  },
+  totalCalls: {
+    type: Number,
+    default: 0
+  },
+  lastInteraction: {
+    type: String,
+    required: false
+  },
+  notes: {
+    type: String,
+    required: false
+  }
+}, {
+  timestamps: true
+});
+
+export const Client = mongoose.model<IClient>('Client', ClientSchema);
