@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Phone, Calendar, MessageSquare, Brain, TrendingUp, Clock, CheckCircle, X, Eye, Lightbulb, Target, Zap, Users, ExternalLink } from "lucide-react";
+import { ArrowLeft, Phone, Calendar, MessageSquare, Brain, TrendingUp, Clock, CheckCircle, X, Eye, Lightbulb, Target, Zap, Users, ExternalLink, Activity, BarChart3 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
+import { ClientMetricsDashboard } from "@/components/ClientMetricsDashboard";
 
 interface Client {
   _id: string;
@@ -23,12 +24,57 @@ interface CallRecord {
   timestamp: string;
   duration: number;
   transcript: string;
-  mood: string;
+  mood: 'positive' | 'neutral' | 'negative';
   sentiment: number;
-  direction: string;
-  aiSuggestions: any[];
+  direction: 'inbound' | 'outbound';
+  status: 'in_progress' | 'completed' | 'failed' | 'no_answer' | 'busy' | 'declined';
+  aiSuggestions: AISuggestion[];
   outcome: string;
-  metadata: any;
+  moodAnalysis?: {
+    mood: 'positive' | 'neutral' | 'negative';
+    sentiment: number;
+  };
+  callAnalysis?: {
+    summary: string;
+    keyTopics: string[];
+    customerEngagement: number;
+    agentPerformance: number;
+    conversationFlow: {
+      segments: Array<{
+        timestamp: number;
+        speaker: 'customer' | 'agent';
+        content: string;
+        sentiment: number;
+        topic?: string;
+      }>;
+    };
+    metrics: {
+      totalWords: number;
+      customerWords: number;
+      agentWords: number;
+      speakingTimeRatio: number;
+      averageResponseTime: number;
+      interruptionCount: number;
+      questionCount: number;
+      objectionCount: number;
+      agreementCount: number;
+      solutionMentioned: boolean;
+      nextStepsAgreed: boolean;
+      customerSatisfaction: number;
+    };
+    insights: {
+      strengths: string[];
+      improvements: string[];
+      recommendations: string[];
+      riskFactors: string[];
+    };
+  };
+  metadata?: {
+    callerId?: string;
+    location?: string;
+    device?: string;
+    audioUrl?: string;
+  };
 }
 
 interface AISuggestion {
@@ -56,6 +102,7 @@ export default function ClientDetailPage() {
   const [isTranscriptModalOpen, setIsTranscriptModalOpen] = useState(false);
   const [selectedSuggestions, setSelectedSuggestions] = useState<AISuggestion[]>([]);
   const [isSuggestionsModalOpen, setIsSuggestionsModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'calls' | 'metrics'>('calls');
 
   useEffect(() => {
     fetchClientData();
@@ -111,14 +158,17 @@ export default function ClientDetailPage() {
           
           // Only process if this is the current call
           if (currentCallSid === null || message.callSid === currentCallSid) {
-            setCurrentCall(prev => ({
-              ...prev,
-              callSid: message.callSid || 'unknown',
-              speaker: message.speaker || 'Unknown',
-              transcript: message.transcript,
-              fullTranscript: message.fullTranscript || message.transcript,
-              confidence: message.confidence || 0.5
-            }));
+            setCurrentCall(prev => {
+              if (!prev) return null;
+              return {
+                ...prev,
+                callSid: message.callSid || 'unknown',
+                speaker: message.speaker || 'Unknown',
+                transcript: message.transcript,
+                fullTranscript: message.fullTranscript || message.transcript,
+                confidence: message.confidence || 0.5
+              };
+            });
           }
         }
         
@@ -277,307 +327,519 @@ export default function ClientDetailPage() {
           </div>
         </div>
 
-        {/* Client Info */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-          {/* Client Details */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Client Information</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-600">Phone</span>
-                <span className="font-medium text-slate-900">{client.phoneNumber}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-600">Status</span>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  client.status === 'prospect' ? 'bg-yellow-100 text-yellow-800' :
-                  client.status === 'lead' ? 'bg-blue-100 text-blue-800' :
-                  client.status === 'customer' ? 'bg-green-100 text-green-800' :
-                  'bg-gray-100 text-gray-800'
-                }`}>
-                  {client.status}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-600">Created</span>
-                <span className="font-medium text-slate-900">
-                  {new Date(client.createdAt).toLocaleDateString()}
-                </span>
-              </div>
-              {client.lastCallDate && (
+        {/* Client Info Card */}
+        <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200 mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Client Details */}
+            <div className="lg:col-span-1">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4">Client Information</h3>
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Last Call</span>
-                  <span className="font-medium text-slate-900">
-                    {new Date(client.lastCallDate).toLocaleDateString()}
-                  </span>
+                  <span className="text-slate-600">Phone</span>
+                  <span className="font-medium text-slate-900">{client.phoneNumber}</span>
                 </div>
-              )}
-              {client.mood && (
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Mood</span>
-                  <span className={`font-medium ${
-                    client.mood === 'positive' ? 'text-green-600' :
-                    client.mood === 'neutral' ? 'text-yellow-600' :
-                    'text-red-600'
+                  <span className="text-slate-600">Status</span>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    client.status === 'prospect' ? 'bg-yellow-100 text-yellow-800' :
+                    client.status === 'lead' ? 'bg-blue-100 text-blue-800' :
+                    client.status === 'customer' ? 'bg-green-100 text-green-800' :
+                    'bg-gray-100 text-gray-800'
                   }`}>
-                    {client.mood}
+                    {client.status}
                   </span>
                 </div>
-              )}
-            </div>
-            {client.notes && (
-              <div className="mt-4 pt-4 border-t border-slate-200">
-                <h4 className="text-sm font-medium text-slate-700 mb-2">Notes</h4>
-                <p className="text-sm text-slate-600">{client.notes}</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600">Created</span>
+                  <span className="font-medium text-slate-900">
+                    {new Date(client.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+                {client.lastCallDate && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600">Last Call</span>
+                    <span className="font-medium text-slate-900">
+                      {new Date(client.lastCallDate).toLocaleDateString()}
+                    </span>
+                  </div>
+                )}
+                {client.mood && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600">Mood</span>
+                    <span className={`font-medium ${
+                      client.mood === 'positive' ? 'text-green-600' :
+                      client.mood === 'neutral' ? 'text-yellow-600' :
+                      'text-red-600'
+                    }`}>
+                      {client.mood}
+                    </span>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
+
+            {/* Quick Stats */}
+            <div className="lg:col-span-2">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4">Quick Stats</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center p-4 bg-slate-50 rounded-lg">
+                  <div className="text-2xl font-bold text-slate-900">{callHistory.length}</div>
+                  <div className="text-sm text-slate-600">Total Calls</div>
+                </div>
+                <div className="text-center p-4 bg-slate-50 rounded-lg">
+                  <div className="text-2xl font-bold text-slate-900">
+                    {callHistory.length > 0 ? Math.round(callHistory.reduce((sum, call) => sum + call.duration, 0) / callHistory.length / 60) : 0}m
+                  </div>
+                  <div className="text-sm text-slate-600">Avg Duration</div>
+                </div>
+                <div className="text-center p-4 bg-slate-50 rounded-lg">
+                  <div className="text-2xl font-bold text-slate-900">
+                    {callHistory.filter(call => call.outcome === 'successful').length}
+                  </div>
+                  <div className="text-sm text-slate-600">Successful</div>
+                </div>
+                <div className="text-center p-4 bg-slate-50 rounded-lg">
+                  <div className="text-2xl font-bold text-slate-900">
+                    {liveSuggestions.length}
+                  </div>
+                  <div className="text-sm text-slate-600">Live Suggestions</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Connection Status */}
+            <div className="lg:col-span-1">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4">Connection Status</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-600">WebSocket</span>
+                  <div className={`flex items-center px-3 py-2 rounded-lg ${
+                    isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  }`}>
+                    <div className={`w-2 h-2 rounded-full mr-2 ${
+                      isConnected ? 'bg-green-500' : 'bg-red-500'
+                    }`}></div>
+                    {isConnected ? 'Connected' : 'Disconnected'}
+                  </div>
+                </div>
+                {currentCallSid && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600">Current Call</span>
+                    <span className="text-xs font-mono text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                      {currentCallSid.substring(0, 8)}...
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
-          {/* Live AI Suggestions */}
-          <div className="lg:col-span-2 bg-white rounded-2xl shadow-lg p-6 border border-slate-200">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <Brain className="w-6 h-6 text-purple-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900">Live AI Suggestions</h3>
-                  <p className="text-sm text-slate-500">Real-time recommendations during calls</p>
-                </div>
-              </div>
-              {liveSuggestions.length > 0 && (
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  <span className="text-sm text-green-600 font-medium">Live</span>
-                </div>
-              )}
+          {client.notes && (
+            <div className="mt-6 pt-6 border-t border-slate-200">
+              <h4 className="text-sm font-medium text-slate-700 mb-2">Notes</h4>
+              <p className="text-sm text-slate-600">{client.notes}</p>
             </div>
-            
-            {liveSuggestions.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Brain className="w-8 h-8 text-slate-400" />
-                </div>
-                <h4 className="text-lg font-medium text-slate-900 mb-2">No Live Suggestions</h4>
-                <p className="text-slate-500 mb-4">AI suggestions will appear here during active calls</p>
-                <div className="text-sm text-slate-400 bg-slate-50 rounded-lg p-3 inline-block">
-                  💡 Make sure a call is active and transcription is working
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {liveSuggestions.map((suggestion, index) => (
-                  <div
-                    key={`${suggestion.offer_id}-${index}`}
-                    className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl border border-purple-100 p-4 hover:shadow-md transition-all duration-200"
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center space-x-2">
-                        <div className="p-1.5 bg-white rounded-lg shadow-sm">
-                          {getSuggestionIcon(suggestion.type)}
-                        </div>
-                        <span className="text-xs font-semibold text-purple-700 bg-purple-100 px-2 py-1 rounded-full">
-                          {suggestion.type.replace('_', ' ').toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                        <span className="text-xs text-slate-500">
-                          {(suggestion.confidence * 100).toFixed(0)}%
-                        </span>
-                      </div>
-                    </div>
-                    <p className="text-sm text-slate-800 mb-3 leading-relaxed line-clamp-3">
-                      {suggestion.text}
-                    </p>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-500 bg-white px-2 py-1 rounded border">
-                        {suggestion.deliver_as}
-                      </span>
-                      <span className="text-slate-400 font-mono">
-                        {suggestion.offer_id}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+          )}
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="mb-8">
+          <div className="flex space-x-1 bg-slate-100 p-1 rounded-lg w-fit">
+            <button
+              onClick={() => setActiveTab('calls')}
+              className={`px-6 py-3 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'calls'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <MessageSquare className="w-4 h-4 inline mr-2" />
+              Call History
+            </button>
+            <button
+              onClick={() => setActiveTab('metrics')}
+              className={`px-6 py-3 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'metrics'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4 inline mr-2" />
+              Metrics & Analytics
+            </button>
           </div>
         </div>
 
-        {/* Call History */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <MessageSquare className="w-6 h-6 text-blue-600" />
+        {/* Tab Content */}
+        {activeTab === 'metrics' ? (
+          <ClientMetricsDashboard 
+            clientId={agentId as string} 
+            callRecords={callHistory} 
+          />
+        ) : (
+          <div className="space-y-6">
+            {/* Live AI Suggestions */}
+            <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-purple-100 rounded-lg">
+                    <Brain className="w-6 h-6 text-purple-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Live AI Suggestions</h3>
+                    <p className="text-sm text-slate-500">Real-time recommendations during calls</p>
+                  </div>
+                </div>
+                {liveSuggestions.length > 0 && (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                    <span className="text-sm text-green-600 font-medium">Live</span>
+                  </div>
+                )}
               </div>
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900">Call History</h3>
-                <p className="text-sm text-slate-500">{callHistory.length} calls recorded</p>
-              </div>
-            </div>
-          </div>
-
-          {callHistory.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <MessageSquare className="w-8 h-8 text-slate-400" />
-              </div>
-              <h4 className="text-lg font-medium text-slate-900 mb-2">No Call History</h4>
-              <p className="text-slate-500">Call records will appear here after conversations</p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {callHistory.map((call) => (
-                <div key={call._id} className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl border border-slate-200 hover:shadow-lg transition-all duration-200 overflow-hidden">
-                  {/* Call Header */}
-                  <div className="p-5 border-b border-slate-200 bg-white/50">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
+            
+              {liveSuggestions.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Brain className="w-8 h-8 text-slate-400" />
+                  </div>
+                  <h4 className="text-lg font-medium text-slate-900 mb-2">No Live Suggestions</h4>
+                  <p className="text-slate-500 mb-4">AI suggestions will appear here during active calls</p>
+                  <div className="text-sm text-slate-400 bg-slate-50 rounded-lg p-3 inline-block">
+                    💡 Make sure a call is active and transcription is working
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {liveSuggestions.map((suggestion, index) => (
+                    <div
+                      key={`${suggestion.offer_id}-${index}`}
+                      className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl border border-purple-100 p-4 hover:shadow-md transition-all duration-200"
+                    >
+                      <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center space-x-2">
-                          <div className={`w-3 h-3 rounded-full ${
-                            call.direction === 'inbound' ? 'bg-green-400' : 'bg-blue-400'
-                          }`}></div>
-                          <span className="text-sm font-semibold text-slate-700 capitalize">
-                            {call.direction} Call
+                          <div className="p-1.5 bg-white rounded-lg shadow-sm">
+                            {getSuggestionIcon(suggestion.type)}
+                          </div>
+                          <span className="text-xs font-semibold text-purple-700 bg-purple-100 px-2 py-1 rounded-full">
+                            {suggestion.type.replace('_', ' ').toUpperCase()}
                           </span>
                         </div>
-                        <div className="text-sm text-slate-600">
-                          {new Date(call.timestamp).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric'
-                          })}
-                        </div>
-                        <div className="text-sm text-slate-600">
-                          {new Date(call.timestamp).toLocaleTimeString('en-US', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </div>
-                        <div className="text-sm text-slate-600">
-                          {call.duration || 0}s
+                        <div className="flex items-center space-x-1">
+                          <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                          <span className="text-xs text-slate-500">
+                            {(suggestion.confidence * 100).toFixed(0)}%
+                          </span>
                         </div>
                       </div>
-                      
-                      {call.moodAnalysis && (
-                        <div className="flex items-center space-x-3">
-                          <div className="text-right">
-                            <div className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold ${
-                              call.moodAnalysis.mood === 'positive' ? 'bg-green-100 text-green-700' :
-                              call.moodAnalysis.mood === 'negative' ? 'bg-red-100 text-red-700' :
-                              'bg-yellow-100 text-yellow-700'
-                            }`}>
-                              <div className={`w-2 h-2 rounded-full mr-2 ${
-                                call.moodAnalysis.mood === 'positive' ? 'bg-green-500' :
-                                call.moodAnalysis.mood === 'negative' ? 'bg-red-500' :
-                                'bg-yellow-500'
+                      <p className="text-sm text-slate-800 mb-3 leading-relaxed line-clamp-3">
+                        {suggestion.text}
+                      </p>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-slate-500 bg-white px-2 py-1 rounded border">
+                          {suggestion.deliver_as}
+                        </span>
+                        <span className="text-slate-400 font-mono">
+                          {suggestion.offer_id}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Call History */}
+            <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <MessageSquare className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Call History</h3>
+                    <p className="text-sm text-slate-500">{callHistory.length} calls recorded</p>
+                  </div>
+                </div>
+              </div>
+
+              {callHistory.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <MessageSquare className="w-8 h-8 text-slate-400" />
+                  </div>
+                  <h4 className="text-lg font-medium text-slate-900 mb-2">No Call History</h4>
+                  <p className="text-slate-500">Call records will appear here after conversations</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {callHistory.map((call) => (
+                    <div key={call._id} className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl border border-slate-200 hover:shadow-lg transition-all duration-200 overflow-hidden">
+                      {/* Call Header */}
+                      <div className="p-5 border-b border-slate-200 bg-white/50">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-4">
+                            <div className="flex items-center space-x-2">
+                              <div className={`w-3 h-3 rounded-full ${
+                                call.direction === 'inbound' ? 'bg-green-400' : 'bg-blue-400'
                               }`}></div>
-                              {call.moodAnalysis.mood}
+                              <span className="text-sm font-semibold text-slate-700 capitalize">
+                                {call.direction} Call
+                              </span>
                             </div>
-                            <div className="text-xs text-slate-500 mt-1">
-                              Sentiment: {Math.round((call.moodAnalysis.sentiment || 0) * 100)}%
+                            <div className="text-sm text-slate-600">
+                              {new Date(call.timestamp).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric'
+                              })}
+                            </div>
+                            <div className="text-sm text-slate-600">
+                              {new Date(call.timestamp).toLocaleTimeString('en-US', {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </div>
+                            <div className="text-sm text-slate-600">
+                              {call.duration || 0}s
                             </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Call Content */}
-                  <div className="p-5 space-y-4">
-                    {/* Transcript Section */}
-                    {call.transcript && (
-                      <div className="bg-white rounded-lg border border-slate-200 p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <h5 className="text-sm font-semibold text-slate-700 flex items-center space-x-2">
-                            <MessageSquare className="w-4 h-4" />
-                            <span>Conversation</span>
-                          </h5>
-                          <button
-                            onClick={() => openTranscriptModal(call.transcript)}
-                            className="flex items-center space-x-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium"
-                          >
-                            <Eye className="w-4 h-4" />
-                            <span>View Full</span>
-                          </button>
-                        </div>
-                        <p className="text-sm text-slate-600 line-clamp-2 leading-relaxed">
-                          {call.transcript.length > 150
-                            ? `${call.transcript.substring(0, 150)}...`
-                            : call.transcript
-                          }
-                        </p>
-                      </div>
-                    )}
-                    
-                    {/* AI Suggestions Section */}
-                    {call.aiSuggestions && call.aiSuggestions.length > 0 && (
-                      <div className="bg-white rounded-lg border border-slate-200 p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <h5 className="text-sm font-semibold text-slate-700 flex items-center space-x-2">
-                            <Lightbulb className="w-4 h-4" />
-                            <span>AI Suggestions ({call.aiSuggestions.length})</span>
-                          </h5>
-                          <button
-                            onClick={() => openSuggestionsModal(call.aiSuggestions)}
-                            className="flex items-center space-x-1 px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm font-medium"
-                          >
-                            <Lightbulb className="w-4 h-4" />
-                            <span>View All</span>
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {call.aiSuggestions.slice(0, 2).map((suggestion, index) => (
-                            <div key={index} className="bg-gradient-to-br from-purple-50 to-indigo-50 p-3 rounded-lg border border-purple-100 hover:shadow-sm transition-shadow">
-                              <div className="flex items-start justify-between mb-2">
-                                <div className="flex items-center space-x-2">
-                                  <div className="p-1 bg-purple-100 rounded">
-                                    {getSuggestionIcon(suggestion.type)}
-                                  </div>
-                                  <span className="text-xs font-semibold text-purple-700 bg-purple-100 px-2 py-1 rounded-full">
-                                    {suggestion.type.replace('_', ' ').toUpperCase()}
-                                  </span>
+                          
+                          {call.moodAnalysis && (
+                            <div className="flex items-center space-x-3">
+                              <div className="text-right">
+                                <div className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold ${
+                                  call.moodAnalysis.mood === 'positive' ? 'bg-green-100 text-green-700' :
+                                  call.moodAnalysis.mood === 'negative' ? 'bg-red-100 text-red-700' :
+                                  'bg-yellow-100 text-yellow-700'
+                                }`}>
+                                  <div className={`w-2 h-2 rounded-full mr-2 ${
+                                    call.moodAnalysis.mood === 'positive' ? 'bg-green-500' :
+                                    call.moodAnalysis.mood === 'negative' ? 'bg-red-500' :
+                                    'bg-yellow-500'
+                                  }`}></div>
+                                  {call.moodAnalysis.mood}
                                 </div>
-                                <div className="flex items-center space-x-1">
-                                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                                  <span className="text-xs text-slate-500">
-                                    {(suggestion.confidence * 100).toFixed(0)}%
-                                  </span>
+                                <div className="text-xs text-slate-500 mt-1">
+                                  Sentiment: {Math.round((call.moodAnalysis.sentiment || 0) * 100)}%
                                 </div>
                               </div>
-                              <p className="text-sm text-slate-800 mb-2 line-clamp-2 leading-relaxed">
-                                {suggestion.text}
-                              </p>
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                                  {suggestion.deliver_as}
-                                </span>
-                                <span className="text-slate-400 font-mono">
-                                  {suggestion.offer_id}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                          {call.aiSuggestions.length > 2 && (
-                            <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-lg p-3 flex items-center justify-center">
-                              <span className="text-sm text-slate-500 font-medium">
-                                +{call.aiSuggestions.length - 2} more suggestions
-                              </span>
                             </div>
                           )}
                         </div>
                       </div>
-                    )}
-                  </div>
+
+                      {/* Call Content */}
+                      <div className="p-5 space-y-4">
+                        {/* Transcript Section */}
+                        {call.transcript && (
+                          <div className="bg-white rounded-lg border border-slate-200 p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h5 className="text-sm font-semibold text-slate-700 flex items-center space-x-2">
+                                <MessageSquare className="w-4 h-4" />
+                                <span>Conversation</span>
+                              </h5>
+                              <button
+                                onClick={() => openTranscriptModal(call.transcript)}
+                                className="flex items-center space-x-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium"
+                              >
+                                <Eye className="w-4 h-4" />
+                                <span>View Full</span>
+                              </button>
+                            </div>
+                            <p className="text-sm text-slate-600 line-clamp-2 leading-relaxed">
+                              {call.transcript.length > 150
+                                ? `${call.transcript.substring(0, 150)}...`
+                                : call.transcript
+                              }
+                            </p>
+                          </div>
+                        )}
+                        
+                        {/* AI Suggestions Section */}
+                        {call.aiSuggestions && call.aiSuggestions.length > 0 && (
+                          <div className="bg-white rounded-lg border border-slate-200 p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h5 className="text-sm font-semibold text-slate-700 flex items-center space-x-2">
+                                <Lightbulb className="w-4 h-4" />
+                                <span>AI Suggestions ({call.aiSuggestions.length})</span>
+                              </h5>
+                              <button
+                                onClick={() => openSuggestionsModal(call.aiSuggestions)}
+                                className="flex items-center space-x-1 px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm font-medium"
+                              >
+                                <Lightbulb className="w-4 h-4" />
+                                <span>View All</span>
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {call.aiSuggestions.slice(0, 2).map((suggestion, index) => (
+                                <div key={index} className="bg-gradient-to-br from-purple-50 to-indigo-50 p-3 rounded-lg border border-purple-100 hover:shadow-sm transition-shadow">
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div className="flex items-center space-x-2">
+                                      <div className="p-1 bg-purple-100 rounded">
+                                        {getSuggestionIcon(suggestion.type)}
+                                      </div>
+                                      <span className="text-xs font-semibold text-purple-700 bg-purple-100 px-2 py-1 rounded-full">
+                                        {suggestion.type.replace('_', ' ').toUpperCase()}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center space-x-1">
+                                      <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                                      <span className="text-xs text-slate-500">
+                                        {(suggestion.confidence * 100).toFixed(0)}%
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <p className="text-sm text-slate-800 mb-2 line-clamp-2 leading-relaxed">
+                                    {suggestion.text}
+                                  </p>
+                                  <div className="flex items-center justify-between text-xs">
+                                    <span className="text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                                      {suggestion.deliver_as}
+                                    </span>
+                                    <span className="text-slate-400 font-mono">
+                                      {suggestion.offer_id}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                              {call.aiSuggestions.length > 2 && (
+                                <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-lg p-3 flex items-center justify-center">
+                                  <span className="text-sm text-slate-500 font-medium">
+                                    +{call.aiSuggestions.length - 2} more suggestions
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Call Analysis Summary */}
+                        {call.callAnalysis && (
+                          <div className="bg-white rounded-lg border border-slate-200 p-4">
+                            <h5 className="text-sm font-semibold text-slate-700 flex items-center space-x-2 mb-3">
+                              <Activity className="w-4 h-4" />
+                              <span>Call Analysis</span>
+                            </h5>
+                            
+                            {/* Summary */}
+                            <div className="mb-4">
+                              <p className="text-sm text-slate-800 font-medium mb-2">Summary:</p>
+                              <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg">
+                                {call.callAnalysis.summary}
+                              </p>
+                            </div>
+
+                            {/* Key Metrics */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                              <div className="text-center">
+                                <p className="text-xs text-slate-500 mb-1">Customer Engagement</p>
+                                <div className="flex items-center justify-center space-x-1">
+                                  <div className="w-16 bg-slate-200 rounded-full h-2">
+                                    <div 
+                                      className="bg-blue-500 h-2 rounded-full" 
+                                      style={{ width: `${(call.callAnalysis.customerEngagement || 0) * 100}%` }}
+                                    ></div>
+                                  </div>
+                                  <span className="text-xs text-slate-600">
+                                    {Math.round((call.callAnalysis.customerEngagement || 0) * 100)}%
+                                  </span>
+                                </div>
+                              </div>
+                              
+                              <div className="text-center">
+                                <p className="text-xs text-slate-500 mb-1">Agent Performance</p>
+                                <div className="flex items-center justify-center space-x-1">
+                                  <div className="w-16 bg-slate-200 rounded-full h-2">
+                                    <div 
+                                      className="bg-green-500 h-2 rounded-full" 
+                                      style={{ width: `${(call.callAnalysis.agentPerformance || 0) * 100}%` }}
+                                    ></div>
+                                  </div>
+                                  <span className="text-xs text-slate-600">
+                                    {Math.round((call.callAnalysis.agentPerformance || 0) * 100)}%
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="text-center">
+                                <p className="text-xs text-slate-500 mb-1">Response Time</p>
+                                <p className="text-sm font-semibold text-slate-700">
+                                  {call.callAnalysis.metrics?.averageResponseTime ? 
+                                    `${Math.round(call.callAnalysis.metrics.averageResponseTime)}s` : 'N/A'}
+                                </p>
+                              </div>
+
+                              <div className="text-center">
+                                <p className="text-xs text-slate-500 mb-1">Questions Asked</p>
+                                <p className="text-sm font-semibold text-slate-700">
+                                  {call.callAnalysis.metrics?.questionCount || 0}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Key Topics */}
+                            {call.callAnalysis.keyTopics && call.callAnalysis.keyTopics.length > 0 && (
+                              <div className="mb-4">
+                                <p className="text-sm text-slate-800 font-medium mb-2">Key Topics:</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {call.callAnalysis.keyTopics.map((topic, index) => (
+                                    <span 
+                                      key={index}
+                                      className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs"
+                                    >
+                                      {topic}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Insights */}
+                            {call.callAnalysis.insights && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {call.callAnalysis.insights.strengths && call.callAnalysis.insights.strengths.length > 0 && (
+                                  <div>
+                                    <p className="text-xs font-medium text-green-700 mb-1">Strengths:</p>
+                                    <ul className="text-xs text-slate-600 space-y-1">
+                                      {call.callAnalysis.insights.strengths.slice(0, 2).map((strength, index) => (
+                                        <li key={index} className="flex items-start space-x-1">
+                                          <span className="text-green-500">•</span>
+                                          <span>{strength}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+
+                                {call.callAnalysis.insights.improvements && call.callAnalysis.insights.improvements.length > 0 && (
+                                  <div>
+                                    <p className="text-xs font-medium text-yellow-700 mb-1">Improvements:</p>
+                                    <ul className="text-xs text-slate-600 space-y-1">
+                                      {call.callAnalysis.insights.improvements.slice(0, 2).map((improvement, index) => (
+                                        <li key={index} className="flex items-start space-x-1">
+                                          <span className="text-yellow-500">•</span>
+                                          <span>{improvement}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
-          )}
-        </div>
-        </div>
+          </div>
+        )}
       </div>
+    </div>
 
       {/* Transcript Modal */}
       {isTranscriptModalOpen && selectedTranscript && (

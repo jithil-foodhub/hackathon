@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { WebSocketManager } from '../services/websocket';
 import { LatencyProfiler } from '../services/latencyProfiler';
 import { CallRecord } from '../models/CallRecord';
+import { CallAnalysisService } from '../services/callAnalysisService';
 
 interface TwilioTranscriptionData {
   CallSid: string;
@@ -226,13 +227,31 @@ async function processTranscriptionForAI(
     console.log(`\n🚀 Broadcasting to ${wsManager.getConnectionCount()} connected clients...`);
     console.log(`==========================================\n`);
 
-    // Update call record with AI analysis
-    await CallRecord.findByIdAndUpdate(callRecord._id, {
+    // Perform comprehensive call analysis if transcript is substantial
+    let callAnalysis = null;
+    if (transcript.length > 100) {
+      try {
+        console.log('🔍 Performing comprehensive call analysis...');
+        callAnalysis = await CallAnalysisService.analyzeCall(transcript, callRecord.duration || 0);
+        console.log('✅ Call analysis completed:', callAnalysis.summary);
+      } catch (error) {
+        console.error('❌ Error in call analysis:', error);
+      }
+    }
+
+    // Update call record with AI analysis and call analysis
+    const updateData: any = {
       mood: moodAnalysis.mood,
       sentiment: moodAnalysis.sentiment,
       aiSuggestions: suggestionsArray,
       outcome: determineCallOutcome(suggestionsArray, moodAnalysis)
-    });
+    };
+
+    if (callAnalysis) {
+      updateData.callAnalysis = callAnalysis;
+    }
+
+    await CallRecord.findByIdAndUpdate(callRecord._id, updateData);
 
     // Broadcast live analysis to all connected clients (including AI Suggestions page)
     const liveAnalysisMessage = {

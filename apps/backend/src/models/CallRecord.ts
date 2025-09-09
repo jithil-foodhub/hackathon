@@ -19,11 +19,56 @@ export interface ICallRecord extends Document {
     deliver_as: string;
     reasoning?: string;
   }>;
+  
+  // Call Analysis Metrics
+  callAnalysis?: {
+    summary: string; // One-liner summary
+    keyTopics: string[]; // Main topics discussed
+    customerEngagement: number; // 0-1 scale
+    agentPerformance: number; // 0-1 scale
+    conversationFlow: {
+      segments: Array<{
+        timestamp: number;
+        speaker: 'customer' | 'agent';
+        content: string;
+        sentiment: number;
+        topic?: string;
+      }>;
+      transitions: Array<{
+        from: number;
+        to: number;
+        type: 'topic_change' | 'speaker_change' | 'sentiment_shift';
+        description: string;
+      }>;
+    };
+    metrics: {
+      totalWords: number;
+      customerWords: number;
+      agentWords: number;
+      speakingTimeRatio: number; // agent/customer speaking time ratio
+      averageResponseTime: number; // in seconds
+      interruptionCount: number;
+      questionCount: number;
+      objectionCount: number;
+      agreementCount: number;
+      solutionMentioned: boolean;
+      nextStepsAgreed: boolean;
+      customerSatisfaction: number; // 0-1 scale
+    };
+    insights: {
+      strengths: string[];
+      improvements: string[];
+      recommendations: string[];
+      riskFactors: string[];
+    };
+  };
+  
   metadata?: {
     callerId?: string;
     location?: string;
     device?: string;
     audioUrl?: string;
+    callSid?: string;
   };
   createdAt: Date;
   updatedAt: Date;
@@ -95,11 +140,53 @@ const CallRecordSchema = new Schema<ICallRecord>({
     }],
     default: []
   },
+  callAnalysis: {
+    summary: String,
+    keyTopics: [String],
+    customerEngagement: { type: Number, min: 0, max: 1 },
+    agentPerformance: { type: Number, min: 0, max: 1 },
+    conversationFlow: {
+      segments: [{
+        timestamp: Number,
+        speaker: { type: String, enum: ['customer', 'agent'] },
+        content: String,
+        sentiment: Number,
+        topic: String
+      }],
+      transitions: [{
+        from: Number,
+        to: Number,
+        type: { type: String, enum: ['topic_change', 'speaker_change', 'sentiment_shift'] },
+        description: String
+      }]
+    },
+    metrics: {
+      totalWords: Number,
+      customerWords: Number,
+      agentWords: Number,
+      speakingTimeRatio: Number,
+      averageResponseTime: Number,
+      interruptionCount: Number,
+      questionCount: Number,
+      objectionCount: Number,
+      agreementCount: Number,
+      solutionMentioned: Boolean,
+      nextStepsAgreed: Boolean,
+      customerSatisfaction: { type: Number, min: 0, max: 1 }
+    },
+    insights: {
+      strengths: [String],
+      improvements: [String],
+      recommendations: [String],
+      riskFactors: [String]
+    }
+  },
   metadata: {
     callerId: String,
     location: String,
     device: String,
-    audioUrl: String
+    audioUrl: String,
+    callSid: String
   }
 }, {
   timestamps: true

@@ -6,7 +6,7 @@ import { ClientDashboard } from "@/components/ClientDashboard";
 import { ClassicSidebar } from "@/components/ClassicSidebar";
 import { TrendingUp, Users, Clock, BarChart3, Phone } from "lucide-react";
 
-type Screen = "home" | "clients";
+type Screen = "home" | "clients" | "analytics";
 
 export default function Home() {
   const router = useRouter();
@@ -156,6 +156,8 @@ export default function Home() {
       window.location.href = "/dashboard";
     } else if (screen === "clients") {
       window.location.href = "/clients";
+    } else if (screen === "analytics") {
+      window.location.href = "/analytics";
     }
   };
 

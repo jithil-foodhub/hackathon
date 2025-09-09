@@ -4,6 +4,7 @@ import React from 'react';
 import { 
   Users, 
   Home,
+  BarChart3,
   ChevronRight,
   Plus,
   Building2
@@ -35,6 +36,12 @@ export function ClassicSidebar({
       icon: Users,
       description: 'Manage client relationships',
       count: clientCount
+    },
+    {
+      id: 'analytics',
+      label: 'Analytics',
+      icon: BarChart3,
+      description: 'Call performance insights'
     }
   ];
 

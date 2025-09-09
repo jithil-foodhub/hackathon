@@ -12,6 +12,7 @@ import { twilioWebhook } from './routes/twilio';
 import { twilioCallWebhook } from './routes/twilioWebhook';
 import { twilioTranscriptionWebhook } from './routes/twilioTranscription';
 import { twilioMediaStreamWebhook } from './routes/twilioMediaStream';
+import { getAnalytics, getCallSummary } from './routes/analytics';
 import { generateSuggestion } from './routes/api';
 import { customerSimulation } from './routes/customer';
 import { clientTranscriptWebhook } from './routes/webhook';
@@ -87,6 +88,10 @@ app.get('/api/clients/stats', getClientStats);
 app.get('/api/clients', getClients);
 app.get('/api/clients/:id', getClient);
 app.get('/api/clients/:agentId/calls', getClientCalls);
+
+// Analytics endpoints
+app.get('/api/analytics', getAnalytics);
+app.get('/api/analytics/call/:callId', getCallSummary);
 app.post('/api/clients', createClient);
 app.put('/api/clients/:id', updateClient);
 app.delete('/api/clients/:id', deleteClient);
