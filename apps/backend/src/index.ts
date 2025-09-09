@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
@@ -17,6 +18,7 @@ import { generateSuggestion } from './routes/api';
 import { customerSimulation } from './routes/customer';
 import { clientTranscriptWebhook } from './routes/webhook';
 import { getClients, getClient, createClient, updateClient, deleteClient, getClientStats, getClientCalls } from './routes/clients';
+import { analyzeClientPreferences, generatePersonalizedWebsite, deployWebsite, getClientSites, deleteClientSite } from './routes/clientPreferences';
 import { mongoDBService } from './services/mongodb';
 import { WebSocketManager } from './services/websocket';
 import { LatencyProfiler } from './services/latencyProfiler';
@@ -89,9 +91,51 @@ app.get('/api/clients', getClients);
 app.get('/api/clients/:id', getClient);
 app.get('/api/clients/:agentId/calls', getClientCalls);
 
+// Client preferences and website generation endpoints
+app.get('/api/clients/:agentId/preferences', analyzeClientPreferences);
+app.post('/api/clients/:agentId/generate-website', generatePersonalizedWebsite);
+app.post('/api/clients/:agentId/deploy-website', deployWebsite);
+app.get('/api/clients/:agentId/sites', getClientSites);
+app.delete('/api/clients/:agentId/sites/:fileName', deleteClientSite);
+
 // Analytics endpoints
 app.get('/api/analytics', getAnalytics);
 app.get('/api/analytics/call/:callId', getCallSummary);
+
+// Preview generated websites
+app.get('/preview/:fileName', (req, res) => {
+  try {
+    const fileName = req.params.fileName;
+    const filePath = path.join(__dirname, '../generated-sites', fileName);
+    
+    if (fs.existsSync(filePath)) {
+      res.sendFile(filePath);
+    } else {
+      res.status(404).send('File not found');
+    }
+  } catch (error) {
+    console.error('Error serving preview file:', error);
+    res.status(500).send('Error serving file');
+  }
+});
+
+// Serve deployed websites (local fallback)
+app.get('/sites/:clientId/:fileName', (req, res) => {
+  try {
+    const { clientId, fileName } = req.params;
+    const filePath = path.join(__dirname, '../public/sites', clientId, fileName);
+    
+    if (fs.existsSync(filePath)) {
+      res.sendFile(filePath);
+    } else {
+      res.status(404).send('File not found');
+    }
+  } catch (error) {
+    console.error('Error serving deployed file:', error);
+    res.status(500).send('Error serving file');
+  }
+});
+
 app.post('/api/clients', createClient);
 app.put('/api/clients/:id', updateClient);
 app.delete('/api/clients/:id', deleteClient);

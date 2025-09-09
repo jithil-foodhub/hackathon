@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Phone, Calendar, MessageSquare, Brain, TrendingUp, Clock, CheckCircle, X, Eye, Lightbulb, Target, Zap, Users, ExternalLink, Activity, BarChart3 } from "lucide-react";
+import { ArrowLeft, Phone, Calendar, MessageSquare, Brain, TrendingUp, Clock, CheckCircle, X, Eye, Lightbulb, Target, Zap, Users, ExternalLink, Activity, BarChart3, Globe, Upload, EyeIcon } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ClientMetricsDashboard } from "@/components/ClientMetricsDashboard";
 
@@ -102,7 +102,18 @@ export default function ClientDetailPage() {
   const [isTranscriptModalOpen, setIsTranscriptModalOpen] = useState(false);
   const [selectedSuggestions, setSelectedSuggestions] = useState<AISuggestion[]>([]);
   const [isSuggestionsModalOpen, setIsSuggestionsModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'calls' | 'metrics'>('calls');
+  const [activeTab, setActiveTab] = useState<'calls' | 'metrics' | 'website'>('calls');
+  
+  // Website generation state
+  const [isAnalyzingPreferences, setIsAnalyzingPreferences] = useState(false);
+  const [preferences, setPreferences] = useState<any>(null);
+  const [personalizedContent, setPersonalizedContent] = useState<any>(null);
+  const [generatedHtml, setGeneratedHtml] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [filePath, setFilePath] = useState<string | null>(null);
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [deployedUrl, setDeployedUrl] = useState<string | null>(null);
+  const [clientName, setClientName] = useState<string>('');
 
   useEffect(() => {
     fetchClientData();
@@ -239,6 +250,71 @@ export default function ClientDetailPage() {
         return 'bg-orange-100 text-orange-800 border-orange-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  // Website generation functions
+  const analyzePreferences = async () => {
+    try {
+      setIsAnalyzingPreferences(true);
+      const response = await fetch(`/api/clients/${agentId}/preferences`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setPreferences(data.data.preferences);
+        setPersonalizedContent(data.data.personalizedContent);
+      }
+    } catch (error) {
+      console.error('Error analyzing preferences:', error);
+    } finally {
+      setIsAnalyzingPreferences(false);
+    }
+  };
+
+  const generateWebsite = async () => {
+    try {
+      setIsAnalyzingPreferences(true);
+      const response = await fetch(`/api/clients/${agentId}/generate-website`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientName })
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        setPreferences(data.data.preferences);
+        setPersonalizedContent(data.data.personalizedContent);
+        setGeneratedHtml(data.data.html);
+        setPreviewUrl(data.data.previewUrl);
+        setFilePath(data.data.filePath);
+      }
+    } catch (error) {
+      console.error('Error generating website:', error);
+    } finally {
+      setIsAnalyzingPreferences(false);
+    }
+  };
+
+  const deployWebsite = async () => {
+    try {
+      setIsDeploying(true);
+      const response = await fetch(`/api/clients/${agentId}/deploy-website`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          filePath: filePath,
+          clientName 
+        })
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        setDeployedUrl(data.data.deployedUrl);
+      }
+    } catch (error) {
+      console.error('Error deploying website:', error);
+    } finally {
+      setIsDeploying(false);
     }
   };
 
@@ -467,6 +543,17 @@ export default function ClientDetailPage() {
               <BarChart3 className="w-4 h-4 inline mr-2" />
               Metrics & Analytics
             </button>
+            <button
+              onClick={() => setActiveTab('website')}
+              className={`px-6 py-3 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'website'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Globe className="w-4 h-4 inline mr-2" />
+              Website Generator
+            </button>
           </div>
         </div>
 
@@ -476,6 +563,129 @@ export default function ClientDetailPage() {
             clientId={agentId as string} 
             callRecords={callHistory} 
           />
+        ) : activeTab === 'website' ? (
+          <div className="space-y-6">
+            {/* Website Generator */}
+            <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <Globe className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Personalized Website Generator</h3>
+                    <p className="text-sm text-slate-500">Generate a custom food ordering website based on client preferences</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Client Name Input */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Client Name (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                  placeholder="Enter client name for personalization"
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex space-x-4 mb-6">
+                <button
+                  onClick={analyzePreferences}
+                  disabled={isAnalyzingPreferences}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Brain className="w-4 h-4" />
+                  <span>{isAnalyzingPreferences ? 'Analyzing...' : 'Analyze Preferences'}</span>
+                </button>
+                
+                <button
+                  onClick={generateWebsite}
+                  disabled={isAnalyzingPreferences}
+                  className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Globe className="w-4 h-4" />
+                  <span>{isAnalyzingPreferences ? 'Generating...' : 'Generate Website'}</span>
+                </button>
+              </div>
+
+              {/* Preferences Display */}
+              {preferences && (
+                <div className="mb-6 p-4 bg-slate-50 rounded-lg">
+                  <h4 className="font-semibold text-slate-900 mb-3">Analyzed Preferences</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-slate-600">Cuisine Types</p>
+                      <p className="text-sm text-slate-800">{preferences.cuisineTypes?.join(', ') || 'None detected'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-600">Price Range</p>
+                      <p className="text-sm text-slate-800 capitalize">{preferences.priceRange || 'Not specified'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-600">Dietary Restrictions</p>
+                      <p className="text-sm text-slate-800">{preferences.dietaryRestrictions?.join(', ') || 'None'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-600">Frequency</p>
+                      <p className="text-sm text-slate-800 capitalize">{preferences.frequency || 'Not specified'}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Preview Section */}
+              {previewUrl && (
+                <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                  <h4 className="font-semibold text-green-900 mb-3">Website Generated Successfully!</h4>
+                  <div className="flex items-center space-x-4">
+                    <a
+                      href={previewUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    >
+                      <EyeIcon className="w-4 h-4" />
+                      <span>Preview Website</span>
+                    </a>
+                    
+                    <button
+                      onClick={deployWebsite}
+                      disabled={isDeploying}
+                      className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Upload className="w-4 h-4" />
+                      <span>{isDeploying ? 'Deploying...' : 'Deploy to S3'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Deployed Website */}
+              {deployedUrl && (
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <h4 className="font-semibold text-blue-900 mb-3">Website Deployed Successfully!</h4>
+                  <div className="flex items-center space-x-4">
+                    <a
+                      href={deployedUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      <span>View Live Website</span>
+                    </a>
+                    <span className="text-sm text-blue-700">Your personalized website is now live!</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         ) : (
           <div className="space-y-6">
             {/* Live AI Suggestions */}
