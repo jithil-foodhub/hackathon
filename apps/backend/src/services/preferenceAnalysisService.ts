@@ -65,7 +65,7 @@ export class PreferenceAnalysisService {
       .map(call => call.transcript)
       .join('\n\n---\n\n');
 
-    const prompt = buildPrompt.preferenceAnalysis(transcripts);
+    const prompt = buildPrompt.preferenceAnalysis(callRecords.map(call => call.transcript));
 
     try {
       const response = await PreferenceAnalysisService.openai.chat.completions.create({

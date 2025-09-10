@@ -10,6 +10,13 @@ export interface IClient extends Document {
   totalCalls: number;
   lastInteraction?: string;
   notes?: string;
+  websites?: Array<{
+    url: string;
+    fileName: string;
+    deployedAt: Date;
+    lastModified?: Date;
+    isActive: boolean;
+  }>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -53,7 +60,29 @@ const ClientSchema = new Schema<IClient>({
   notes: {
     type: String,
     required: false
-  }
+  },
+  websites: [{
+    url: {
+      type: String,
+      required: true
+    },
+    fileName: {
+      type: String,
+      required: true
+    },
+    deployedAt: {
+      type: Date,
+      default: Date.now
+    },
+    lastModified: {
+      type: Date,
+      required: false
+    },
+    isActive: {
+      type: Boolean,
+      default: true
+    }
+  }]
 }, {
   timestamps: true
 });

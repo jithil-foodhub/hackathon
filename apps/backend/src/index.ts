@@ -18,7 +18,7 @@ import { generateSuggestion } from './routes/api';
 import { customerSimulation } from './routes/customer';
 import { clientTranscriptWebhook } from './routes/webhook';
 import { getClients, getClient, createClient, updateClient, deleteClient, getClientStats, getClientCalls } from './routes/clients';
-import { analyzeClientPreferences, generatePersonalizedWebsite, deployWebsite, getClientSites, deleteClientSite } from './routes/clientPreferences';
+import { analyzeClientPreferences, generatePersonalizedWebsite, deployWebsite, getClientSites, deleteClientSite, modifyWebsite, generateWebsitePreview, deleteWebsite, cleanupWebsites } from './routes/clientPreferences';
 import { mongoDBService } from './services/mongodb';
 import { WebSocketManager } from './services/websocket';
 import { LatencyProfiler } from './services/latencyProfiler';
@@ -95,6 +95,10 @@ app.get('/api/clients/:agentId/calls', getClientCalls);
 app.get('/api/clients/:agentId/preferences', analyzeClientPreferences);
 app.post('/api/clients/:agentId/generate-website', generatePersonalizedWebsite);
 app.post('/api/clients/:agentId/deploy-website', deployWebsite);
+app.post('/api/clients/:agentId/generate-preview', generateWebsitePreview);
+app.post('/api/clients/:agentId/modify-website', modifyWebsite);
+app.post('/api/clients/:agentId/delete-website', deleteWebsite);
+app.post('/api/clients/:agentId/cleanup-websites', cleanupWebsites);
 app.get('/api/clients/:agentId/sites', getClientSites);
 app.delete('/api/clients/:agentId/sites/:fileName', deleteClientSite);
 
@@ -103,22 +107,6 @@ app.get('/api/analytics', getAnalytics);
 app.get('/api/analytics/call/:callId', getCallSummary);
 
 // Preview generated websites
-app.get('/preview/:fileName', (req, res) => {
-  try {
-    const fileName = req.params.fileName;
-    const filePath = path.join(__dirname, '../generated-sites', fileName);
-    
-    if (fs.existsSync(filePath)) {
-      res.sendFile(filePath);
-    } else {
-      res.status(404).send('File not found');
-    }
-  } catch (error) {
-    console.error('Error serving preview file:', error);
-    res.status(500).send('Error serving file');
-  }
-});
-
 // Serve deployed websites (local fallback)
 app.get('/sites/:clientId/:fileName', (req, res) => {
   try {

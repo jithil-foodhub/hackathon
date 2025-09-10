@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Phone, Calendar, MessageSquare, Brain, TrendingUp, Clock, CheckCircle, X, Eye, Lightbulb, Target, Zap, Users, ExternalLink, Activity, BarChart3, Globe, Upload, EyeIcon } from "lucide-react";
+import { ArrowLeft, Phone, Calendar, MessageSquare, Brain, TrendingUp, Clock, CheckCircle, X, Eye, Lightbulb, Target, Zap, Users, ExternalLink, Activity, BarChart3, Globe, Upload, EyeIcon, Trash2 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ClientMetricsDashboard } from "@/components/ClientMetricsDashboard";
 
@@ -114,10 +114,17 @@ export default function ClientDetailPage() {
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployedUrl, setDeployedUrl] = useState<string | null>(null);
   const [clientName, setClientName] = useState<string>('');
+  
+  // Website modification state
+  const [modificationRequest, setModificationRequest] = useState<string>('');
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+  const [previewResult, setPreviewResult] = useState<any>(null);
+  const [clientWebsites, setClientWebsites] = useState<any[]>([]);
 
   useEffect(() => {
     fetchClientData();
     setupWebSocket();
+    loadClientWebsites();
   }, [agentId]);
 
   const fetchClientData = async () => {
@@ -310,11 +317,169 @@ export default function ClientDetailPage() {
       
       if (data.success) {
         setDeployedUrl(data.data.deployedUrl);
+        loadClientWebsites(); // Reload websites after deployment
       }
     } catch (error) {
       console.error('Error deploying website:', error);
     } finally {
       setIsDeploying(false);
+    }
+  };
+
+  const loadClientWebsites = async () => {
+    try {
+      const response = await fetch(`/api/clients/${agentId}/sites`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setClientWebsites(data.data);
+        // Set the most recent website as deployed URL
+        if (data.data.length > 0) {
+          const activeWebsite = data.data.find((site: any) => site.isActive) || data.data[0];
+          setDeployedUrl(activeWebsite.url);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading client websites:', error);
+    }
+  };
+
+  const generatePreview = async () => {
+    if (!modificationRequest.trim()) {
+      alert('Please enter a modification request');
+      return;
+    }
+
+    try {
+      setIsGeneratingPreview(true);
+      const response = await fetch(`/api/clients/${agentId}/generate-preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          modificationRequest: modificationRequest.trim()
+        })
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        setPreviewResult(data.data);
+        setPreviewUrl(data.data.previewUrl);
+        setFilePath(data.data.fileName);
+        
+        // Automatically open preview in new tab
+        window.open(data.data.previewUrl, '_blank');
+      } else {
+        alert(data.error || 'Failed to generate preview');
+      }
+    } catch (error) {
+      console.error('Error generating preview:', error);
+      alert('Error generating preview');
+    } finally {
+      setIsGeneratingPreview(false);
+    }
+  };
+
+  const generateAndPreviewModification = async () => {
+    if (!modificationRequest.trim()) {
+      alert('Please enter a modification request');
+      return;
+    }
+
+    try {
+      setIsGeneratingPreview(true);
+      const response = await fetch(`/api/clients/${agentId}/generate-preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          modificationRequest: modificationRequest.trim()
+        })
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        setPreviewResult(data.data);
+        setPreviewUrl(data.data.previewUrl);
+        setFilePath(data.data.fileName);
+        
+        // Automatically open preview in new tab
+        window.open(data.data.previewUrl, '_blank');
+      } else {
+        alert(data.error || 'Failed to generate preview');
+      }
+    } catch (error) {
+      console.error('Error generating preview:', error);
+      alert('Error generating preview');
+    } finally {
+      setIsGeneratingPreview(false);
+    }
+  };
+
+  const deployModifiedWebsite = async () => {
+    if (!filePath) {
+      alert('No website to deploy. Please generate a preview first.');
+      return;
+    }
+
+    try {
+      setIsDeploying(true);
+      const response = await fetch(`/api/clients/${agentId}/deploy-website`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          filePath: filePath,
+          clientName 
+        })
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        setDeployedUrl(data.data.deployedUrl);
+        setPreviewResult(null); // Clear preview result
+        setModificationRequest(''); // Clear the input
+        loadClientWebsites(); // Reload websites
+      } else {
+        alert(data.error || 'Failed to deploy website');
+      }
+    } catch (error) {
+      console.error('Error deploying website:', error);
+      alert('Error deploying website');
+    } finally {
+      setIsDeploying(false);
+    }
+  };
+
+  const deleteWebsite = async (websiteId: string) => {
+    if (!confirm('Are you sure you want to delete this website? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/clients/${agentId}/delete-website`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          websiteId: websiteId
+        })
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        // If the deleted website was the active one, clear the deployed URL
+        const deletedWebsite = clientWebsites.find(w => w._id === websiteId);
+        if (deletedWebsite && deletedWebsite.isActive) {
+          setDeployedUrl(null);
+          setPreviewResult(null);
+          setModificationRequest('');
+        }
+        
+        loadClientWebsites(); // Reload websites
+        alert('Website deleted successfully');
+      } else {
+        alert(data.error || 'Failed to delete website');
+      }
+    } catch (error) {
+      console.error('Error deleting website:', error);
+      alert('Error deleting website');
     }
   };
 
@@ -565,7 +730,7 @@ export default function ClientDetailPage() {
           />
         ) : activeTab === 'website' ? (
           <div className="space-y-6">
-            {/* Website Generator */}
+            {/* Website Management */}
             <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center space-x-3">
@@ -573,49 +738,98 @@ export default function ClientDetailPage() {
                     <Globe className="w-6 h-6 text-blue-600" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-slate-900">Personalized Website Generator</h3>
-                    <p className="text-sm text-slate-500">Generate a custom food ordering website based on client preferences</p>
+                    <h3 className="text-lg font-semibold text-slate-900">Website Management</h3>
+                    <p className="text-sm text-slate-500">Manage and modify client websites</p>
                   </div>
                 </div>
               </div>
 
-              {/* Client Name Input */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Client Name (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                  placeholder="Enter client name for personalization"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
+              {/* Current Website Status */}
+              {deployedUrl ? (
+                <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-green-900">Website is Live</h4>
+                      <p className="text-sm text-green-700">Your website is currently deployed and accessible</p>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <a
+                        href={deployedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        <span>View Live Website</span>
+                      </a>
+                      {clientWebsites.length > 0 && (
+                        <button
+                          onClick={() => {
+                            const activeWebsite = clientWebsites.find(w => w.isActive);
+                            if (activeWebsite) {
+                              deleteWebsite(activeWebsite._id);
+                            }
+                          }}
+                          className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          <span>Delete Website</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-2 h-2 bg-slate-400 rounded-full"></div>
+                      <div>
+                        <h4 className="font-semibold text-slate-900">No Website Deployed</h4>
+                        <p className="text-sm text-slate-600">Generate a website first to enable modifications</p>
+                      </div>
+                    </div>
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={analyzePreferences}
+                        disabled={isAnalyzingPreferences}
+                        className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Brain className="w-4 h-4" />
+                        <span>{isAnalyzingPreferences ? 'Analyzing...' : 'Analyze Preferences'}</span>
+                      </button>
+                      
+                      <button
+                        onClick={generateWebsite}
+                        disabled={isAnalyzingPreferences}
+                        className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Globe className="w-4 h-4" />
+                        <span>{isAnalyzingPreferences ? 'Generating...' : 'Generate Website'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-              {/* Action Buttons */}
-              <div className="flex space-x-4 mb-6">
-                <button
-                  onClick={analyzePreferences}
-                  disabled={isAnalyzingPreferences}
-                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Brain className="w-4 h-4" />
-                  <span>{isAnalyzingPreferences ? 'Analyzing...' : 'Analyze Preferences'}</span>
-                </button>
-                
-                <button
-                  onClick={generateWebsite}
-                  disabled={isAnalyzingPreferences}
-                  className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Globe className="w-4 h-4" />
-                  <span>{isAnalyzingPreferences ? 'Generating...' : 'Generate Website'}</span>
-                </button>
-              </div>
+              {/* Client Name Input - Show when no website is deployed */}
+              {!deployedUrl && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Client Name (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    placeholder="Enter client name for personalization"
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              )}
 
               {/* Preferences Display */}
-              {preferences && (
+              {preferences && !deployedUrl && (
                 <div className="mb-6 p-4 bg-slate-50 rounded-lg">
                   <h4 className="font-semibold text-slate-900 mb-3">Analyzed Preferences</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -639,8 +853,8 @@ export default function ClientDetailPage() {
                 </div>
               )}
 
-              {/* Preview Section */}
-              {previewUrl && (
+              {/* Preview Section - Show when website is generated but not deployed */}
+              {previewUrl && !deployedUrl && (
                 <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-200">
                   <h4 className="font-semibold text-green-900 mb-3">Website Generated Successfully!</h4>
                   <div className="flex items-center space-x-4">
@@ -666,21 +880,155 @@ export default function ClientDetailPage() {
                 </div>
               )}
 
-              {/* Deployed Website */}
+              {/* AI Website Modification */}
               {deployedUrl && (
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <h4 className="font-semibold text-blue-900 mb-3">Website Deployed Successfully!</h4>
-                  <div className="flex items-center space-x-4">
-                    <a
-                      href={deployedUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                      <span>View Live Website</span>
-                    </a>
-                    <span className="text-sm text-blue-700">Your personalized website is now live!</span>
+                <div className="space-y-6">
+                  <div className="border-t border-slate-200 pt-6">
+                    <div className="flex items-center space-x-3 mb-4">
+                      <div className="p-2 bg-purple-100 rounded-lg">
+                        <Brain className="w-6 h-6 text-purple-600" />
+                      </div>
+                      <div>
+                        <h4 className="text-lg font-semibold text-purple-900">AI Website Modification</h4>
+                        <p className="text-sm text-purple-600">Describe what you want to change and preview before deploying</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                          What would you like to change?
+                        </label>
+                        <textarea
+                          value={modificationRequest}
+                          onChange={(e) => setModificationRequest(e.target.value)}
+                          placeholder="e.g., 'Change the hero title to be more welcoming', 'Add more Italian cuisine options', 'Make the colors more vibrant'"
+                          className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none"
+                          rows={3}
+                        />
+                      </div>
+
+                      <div className="flex space-x-3">
+                        <button
+                          onClick={generateAndPreviewModification}
+                          disabled={isGeneratingPreview || !modificationRequest.trim()}
+                          className="flex items-center space-x-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <Brain className="w-4 h-4" />
+                          <span>{isGeneratingPreview ? 'AI is Working...' : 'Generate & Preview'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Preview Result */}
+                  {previewResult && (
+                    <div className="border-t border-slate-200 pt-6">
+                      <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                        <div className="flex items-center space-x-3 mb-4">
+                          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                          <h5 className="font-semibold text-green-900">Preview Generated & Opened!</h5>
+                        </div>
+                        
+                        <div className="space-y-4">
+                          {/* Modifications List */}
+                          {previewResult.modifications && (
+                            <div>
+                              <h6 className="text-sm font-medium text-green-700 mb-2">Changes Made:</h6>
+                              <ul className="space-y-2">
+                                {previewResult.modifications.map((mod: any, index: number) => (
+                                  <li key={index} className="flex items-start space-x-2 text-sm">
+                                    <div className={`w-2 h-2 rounded-full mt-2 ${
+                                      mod.priority === 'high' ? 'bg-red-400' : 
+                                      mod.priority === 'medium' ? 'bg-yellow-400' : 'bg-green-400'
+                                    }`}></div>
+                                    <div>
+                                      <span className="font-medium text-green-800">{mod.section}</span>
+                                      <span className="text-green-600"> - {mod.description}</span>
+                                    </div>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* Reasoning */}
+                          {previewResult.reasoning && (
+                            <div>
+                              <h6 className="text-sm font-medium text-green-700 mb-2">AI Reasoning:</h6>
+                              <p className="text-sm text-green-600 bg-white p-3 rounded-lg border border-green-200">
+                                {previewResult.reasoning}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Action Buttons */}
+                          <div className="flex items-center space-x-4 pt-4 border-t border-green-200">
+                            <a
+                              href={previewResult.previewUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                            >
+                              <EyeIcon className="w-4 h-4" />
+                              <span>Open Preview Again</span>
+                            </a>
+                            
+                            <button
+                              onClick={deployModifiedWebsite}
+                              disabled={isDeploying}
+                              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <Upload className="w-4 h-4" />
+                              <span>{isDeploying ? 'Deploying...' : 'Deploy Changes'}</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Website History */}
+              {clientWebsites.length > 0 && (
+                <div className="border-t border-slate-200 pt-6">
+                  <h4 className="text-lg font-semibold text-slate-900 mb-4">Website History</h4>
+                  <div className="space-y-3">
+                    {clientWebsites.map((website, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-3 h-3 rounded-full ${website.isActive ? 'bg-green-400' : 'bg-slate-300'}`}></div>
+                          <div>
+                            <p className="text-sm font-medium text-slate-900">{website.fileName}</p>
+                            <p className="text-xs text-slate-500">
+                              Deployed: {new Date(website.deployedAt).toLocaleString()}
+                              {website.lastModified && (
+                                <span> • Modified: {new Date(website.lastModified).toLocaleString()}</span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <a
+                            href={website.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center space-x-1 px-3 py-1 bg-white text-slate-700 rounded-lg hover:bg-slate-100 text-sm border border-slate-200"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            <span>View</span>
+                          </a>
+                          <button
+                            onClick={() => deleteWebsite(website._id)}
+                            className="flex items-center space-x-1 px-3 py-1 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 text-sm border border-red-200"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Delete</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

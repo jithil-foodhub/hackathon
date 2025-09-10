@@ -57,14 +57,30 @@ export class LangChainRagService {
   }
 
   /**
-   * Create vector store from FoodHub database
+   * Create vector store from FoodHub database and website template
    */
   private async createVectorStoreFromDatabase(): Promise<void> {
     try {
-      const dataPath = path.join(__dirname, '../../../../foodhub_database.txt');
-      const foodHubData = fs.readFileSync(dataPath, 'utf-8');
+      const foodHubPath = path.join(__dirname, '../../../../foodhub_database.txt');
+      const templatePath = path.join(__dirname, '../../../../website_template_database.txt');
       
-      console.log(`📖 Loaded FoodHub database (${foodHubData.length} characters)`);
+      let allData = '';
+      
+      // Load FoodHub database
+      if (fs.existsSync(foodHubPath)) {
+        const foodHubData = fs.readFileSync(foodHubPath, 'utf-8');
+        allData += `\n\n=== FOODHUB BUSINESS DATABASE ===\n${foodHubData}`;
+        console.log(`📖 Loaded FoodHub database (${foodHubData.length} characters)`);
+      }
+      
+      // Load website template database
+      if (fs.existsSync(templatePath)) {
+        const templateData = fs.readFileSync(templatePath, 'utf-8');
+        allData += `\n\n=== WEBSITE TEMPLATE DATABASE ===\n${templateData}`;
+        console.log(`🎨 Loaded website template database (${templateData.length} characters)`);
+      }
+      
+      console.log(`📚 Total data loaded: ${allData.length} characters`);
       
       // Split the document into chunks
       const textSplitter = new RecursiveCharacterTextSplitter({
@@ -74,10 +90,10 @@ export class LangChainRagService {
       });
 
       const documents = await textSplitter.createDocuments(
-        [foodHubData],
-        [{ source: 'foodhub_database.txt' }],
+        [allData],
+        [{ source: 'combined_database.txt' }],
         {
-          chunkHeader: `FoodHub Business Platform - AI Context Database\n\n`,
+          chunkHeader: `FoodHub AI Context Database\n\n`,
         }
       );
 

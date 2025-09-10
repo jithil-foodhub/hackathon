@@ -28,7 +28,7 @@ export class HtmlGeneratorService {
       const cuisineCards = HtmlGeneratorService.generateCuisineCards(preferences.cuisineTypes);
 
       // Generate dish cards
-      const dishCards = HtmlGeneratorService.generateDishCards(content.recommendedDishes, preferences);
+      const dishCards = HtmlGeneratorService.generateDishCards(content.recommendedDishes || content.restaurantRecommendations?.map(r => r.name) || [], preferences);
 
       // Generate offer cards
       const offerCards = HtmlGeneratorService.generateOfferCards(content.specialOffers, preferences);
@@ -63,6 +63,10 @@ export class HtmlGeneratorService {
   }
 
   private static generateCuisineCards(cuisines: string[]): string {
+    // Fallback cuisines if none provided
+    if (!cuisines || cuisines.length === 0) {
+      cuisines = ['Italian', 'Chinese', 'Mexican', 'Japanese'];
+    }
     const cuisineIcons: { [key: string]: string } = {
       'Italian': '🍝',
       'Chinese': '🥢',
@@ -96,6 +100,10 @@ export class HtmlGeneratorService {
   }
 
   private static generateDishCards(dishes: string[], preferences: ClientPreferences): string {
+    // Fallback dishes if none provided
+    if (!dishes || dishes.length === 0) {
+      dishes = ['Pasta', 'Pizza', 'Sushi', 'Curry', 'Tacos', 'Ramen'];
+    }
     const dishDescriptions: { [key: string]: string } = {
       'Pasta': 'Handmade pasta with rich, authentic Italian sauce',
       'Pizza': 'Wood-fired pizza with fresh, premium ingredients',
@@ -137,6 +145,10 @@ export class HtmlGeneratorService {
   }
 
   private static generateOfferCards(offers: string[], preferences: ClientPreferences): string {
+    // Fallback offers if none provided
+    if (!offers || offers.length === 0) {
+      offers = ['Free Delivery', '20% Off First Order', 'Special Discount'];
+    }
     const offerIcons = ['🎉', '💰', '🚀', '⭐', '🎁', '🔥'];
     
     return offers.slice(0, 3).map((offer, index) => `
@@ -148,6 +160,10 @@ export class HtmlGeneratorService {
   }
 
   private static generateHighlightCards(highlights: string[]): string {
+    // Fallback highlights if none provided
+    if (!highlights || highlights.length === 0) {
+      highlights = ['Fast Delivery', 'Fresh Ingredients', 'Top Rated'];
+    }
     const highlightIcons = ['⭐', '🚀', '❤️', '🏆', '🛡️', '⚡'];
     const highlightDescriptions = [
       'Top-rated restaurants with excellent reviews',
@@ -168,7 +184,7 @@ export class HtmlGeneratorService {
   }
 
   static async saveHtmlToFile(html: string, clientId: string): Promise<string> {
-    const outputDir = path.join(__dirname, '../../generated-sites');
+    const outputDir = path.join(__dirname, '../../public/sites', clientId);
     const fileName = `foodhub-${clientId}-${Date.now()}.html`;
     const filePath = path.join(outputDir, fileName);
 
@@ -184,8 +200,8 @@ export class HtmlGeneratorService {
     return filePath;
   }
 
-  static generatePreviewUrl(filePath: string): string {
+  static generatePreviewUrl(filePath: string, clientId: string): string {
     const fileName = path.basename(filePath);
-    return `/preview/${fileName}`;
+    return `/sites/${clientId}/${fileName}`;
   }
 }
