@@ -1,8 +1,11 @@
 import fs from 'fs';
 import path from 'path';
+import { LangChainRagService } from './langchainRagService';
 
 export class FoodHubService {
   private foodHubContext: string;
+  private ragService: LangChainRagService;
+  private isRagInitialized: boolean = false;
 
   constructor() {
     try {
@@ -10,11 +13,29 @@ export class FoodHubService {
       console.log(`🔍 Looking for FoodHub database at: ${dataPath}`);
       this.foodHubContext = fs.readFileSync(dataPath, 'utf-8');
       console.log(`🍕 Loaded comprehensive FoodHub context database (${this.foodHubContext.length} characters).`);
+      
+      // Initialize LangChain RAG service
+      this.ragService = new LangChainRagService();
+      this.initializeRag();
     } catch (error) {
       console.error(`❌ Error loading FoodHub database: ${error.message}`);
       // Fallback to a basic context
       this.foodHubContext = "FoodHub is a restaurant technology platform providing POS systems, online ordering, and business solutions.";
       console.log(`⚠️ Using fallback FoodHub context: ${this.foodHubContext.length} characters`);
+    }
+  }
+
+  /**
+   * Initialize LangChain RAG service asynchronously
+   */
+  private async initializeRag(): Promise<void> {
+    try {
+      await this.ragService.initialize();
+      this.isRagInitialized = true;
+      console.log('✅ LangChain RAG service initialized successfully');
+    } catch (error) {
+      console.error('❌ Error initializing LangChain RAG service:', error);
+      this.isRagInitialized = false;
     }
   }
 
@@ -26,9 +47,29 @@ export class FoodHubService {
   }
 
   /**
-   * Extract relevant context based on customer message with intelligent matching
+   * Extract relevant context using LangChain RAG (preferred method)
    */
-  extractRelevantContext(message: string): string {
+  async extractRelevantContext(message: string): Promise<string> {
+    // Use LangChain RAG if available, otherwise fallback to keyword matching
+    if (this.isRagInitialized && this.ragService.isServiceInitialized()) {
+      try {
+        console.log('🔍 Using LangChain RAG for context extraction...');
+        const relevantContext = await this.ragService.extractRelevantContext(message, 5);
+        return relevantContext;
+      } catch (error) {
+        console.error('❌ Error with LangChain RAG, falling back to keyword matching:', error);
+        return this.extractRelevantContextFallback(message);
+      }
+    } else {
+      console.log('⚠️ LangChain RAG not available, using keyword matching fallback...');
+      return this.extractRelevantContextFallback(message);
+    }
+  }
+
+  /**
+   * Fallback method using keyword matching (legacy implementation)
+   */
+  private extractRelevantContextFallback(message: string): string {
     const messageLower = message.toLowerCase();
     const contextLines = this.foodHubContext.split('\n');
     const relevantLines: string[] = [];
@@ -164,7 +205,43 @@ export class FoodHubService {
   }
 
   /**
-   * Get specific product information based on customer inquiry
+   * Get RAG-powered answer using LangChain
+   */
+  async getRagAnswer(query: string): Promise<string> {
+    if (this.isRagInitialized && this.ragService.isServiceInitialized()) {
+      try {
+        console.log('🤖 Using LangChain RAG for answer generation...');
+        const answer = await this.ragService.getRagAnswer(query);
+        return answer;
+      } catch (error) {
+        console.error('❌ Error with LangChain RAG answer generation:', error);
+        return this.getProductInfo(query); // Fallback to section-based approach
+      }
+    } else {
+      console.log('⚠️ LangChain RAG not available, using section-based fallback...');
+      return this.getProductInfo(query);
+    }
+  }
+
+  /**
+   * Get relevant context with similarity scores
+   */
+  async getRelevantContextWithScores(query: string, maxResults: number = 5): Promise<Array<{content: string, score: number, metadata: any}>> {
+    if (this.isRagInitialized && this.ragService.isServiceInitialized()) {
+      try {
+        return await this.ragService.getRelevantContextWithScores(query, maxResults);
+      } catch (error) {
+        console.error('❌ Error getting context with scores:', error);
+        return [];
+      }
+    } else {
+      console.log('⚠️ LangChain RAG not available for scored context');
+      return [];
+    }
+  }
+
+  /**
+   * Get specific product information based on customer inquiry (fallback method)
    */
   getProductInfo(inquiry: string): string {
     const inquiryLower = inquiry.toLowerCase();
@@ -255,5 +332,43 @@ export class FoodHubService {
    */
   getSupportInfo(): string {
     return this.extractSection('Customer Support & Services');
+  }
+
+  /**
+   * Get vector store statistics
+   */
+  async getVectorStoreStats(): Promise<{totalDocuments: number, dimensions: number} | null> {
+    if (this.isRagInitialized && this.ragService.isServiceInitialized()) {
+      try {
+        return await this.ragService.getVectorStoreStats();
+      } catch (error) {
+        console.error('❌ Error getting vector store stats:', error);
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Check if RAG service is initialized
+   */
+  isRagServiceReady(): boolean {
+    return this.isRagInitialized && this.ragService.isServiceInitialized();
+  }
+
+  /**
+   * Reset vector store (useful for updates)
+   */
+  async resetVectorStore(): Promise<void> {
+    if (this.isRagInitialized && this.ragService.isServiceInitialized()) {
+      try {
+        await this.ragService.resetVectorStore();
+        this.isRagInitialized = true;
+        console.log('✅ Vector store reset successfully');
+      } catch (error) {
+        console.error('❌ Error resetting vector store:', error);
+        throw error;
+      }
+    }
   }
 }

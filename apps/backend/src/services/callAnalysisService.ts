@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { CallRecord } from '../models/CallRecord';
+import { PROMPTS, buildPrompt } from '../prompts';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -167,31 +168,14 @@ export class CallAnalysisService {
    */
   private static async generateAIAnalysis(transcript: string, segments: any[], metrics: any) {
     try {
-      const prompt = `
-Analyze this customer service call transcript and provide insights. Focus on:
-1. One-line summary of the call
-2. Key topics discussed
-3. Customer engagement level (0-1)
-4. Agent performance (0-1)
-
-Transcript:
-${transcript}
-
-Respond with ONLY valid JSON in this exact format:
-{
-  "summary": "Brief one-line summary of the call",
-  "keyTopics": ["topic1", "topic2", "topic3"],
-  "customerEngagement": 0.8,
-  "agentPerformance": 0.7
-}
-`;
+      const prompt = buildPrompt.callAnalysis(transcript);
 
       const response = await openai.chat.completions.create({
         model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
         messages: [
           {
             role: "system",
-            content: "You are an expert call center analyst. Analyze customer service calls and provide insights. Respond with ONLY valid JSON, no markdown, no extra text."
+            content: PROMPTS.SYSTEM.CALL_ANALYST
           },
           {
             role: "user",

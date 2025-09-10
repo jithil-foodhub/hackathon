@@ -6,6 +6,7 @@ import { OpenAIClient } from '../services/openaiClient';
 import { Client } from '../models/Client';
 import { CallRecord } from '../models/CallRecord';
 import { mongoDBService } from '../services/mongodb';
+import { PROMPTS, buildPrompt } from '../prompts';
 import dotenv from 'dotenv';
 import path from 'path';
 
@@ -377,22 +378,11 @@ export async function analyzeCallMood(transcript: string): Promise<MoodAnalysis>
       messages: [
         {
           role: "system",
-          content: "You are an expert at analyzing customer sentiment and mood from phone call transcripts. Analyze the customer's emotional state, sentiment, and key emotions. You must respond with ONLY valid JSON. Do not wrap the JSON in markdown code blocks, do not add any explanatory text, and do not include any text before or after the JSON. The response must start with { and end with }."
+          content: PROMPTS.SYSTEM.MOOD_ANALYSIS
         },
         {
           role: "user",
-          content: `Analyze this customer call transcript for mood and sentiment:
-
-"${transcript}"
-
-Provide analysis in this JSON format:
-{
-  "mood": "positive|neutral|negative",
-  "sentiment": -1.0 to 1.0,
-  "confidence": 0.0 to 1.0,
-  "keywords": ["key", "words", "from", "transcript"],
-  "emotions": ["emotion1", "emotion2"]
-}`
+          content: buildPrompt.moodAnalysis(transcript)
         }
       ],
       temperature: 0.3,
@@ -518,58 +508,12 @@ export async function generateSalesSuggestions(
       return generateMockSalesSuggestions(transcript, moodAnalysis);
     }
 
-    // Get relevant FoodHub context
+    // Get relevant FoodHub context using LangChain RAG
     const foodHubContext = foodhubService.getFoodHubContext();
-    const relevantContext = foodhubService.extractRelevantContext(transcript);
+    const relevantContext = await foodhubService.extractRelevantContext(transcript);
     const productInfo = foodhubService.getProductInfo(transcript);
 
-    const prompt = `You are a FoodHub Sales Agent analyzing a customer call transcript. Use the customer's mood, sentiment, and conversation history to provide personalized sales suggestions.
-
-CUSTOMER TRANSCRIPT: "${transcript}"
-
-MOOD ANALYSIS:
-- Mood: ${moodAnalysis.mood}
-- Sentiment: ${moodAnalysis.sentiment}
-- Confidence: ${moodAnalysis.confidence || 'N/A'}
-- Key Emotions: ${moodAnalysis.emotions ? moodAnalysis.emotions.join(', ') : 'N/A'}
-
-CLIENT HISTORY:
-${clientHistory && clientHistory.length > 0 ? clientHistory.map(call => `- ${call.timestamp || 'Unknown'}: ${call.transcript || 'No transcript'} (${call.mood || 'unknown'}, ${call.sentiment || 0})`).join('\n') : 'No previous call history'}
-
-FOODHUB CONTEXT:
-${relevantContext}
-
-PRODUCT INFORMATION:
-${productInfo}
-
-INSTRUCTIONS:
-- Consider the customer's current mood and emotional state
-- Reference their conversation history and previous interactions
-- Provide personalized recommendations based on their specific needs
-- Be empathetic and understanding of their situation
-- Suggest appropriate next steps based on their mood and interest level
-- Use specific FoodHub products and features
-
-Generate 1-2 personalized sales suggestions that address their current needs and emotional state.
-
-OUTPUT FORMAT (JSON only):
-{
-  "suggestions": [
-    {
-      "text": "Personalized response based on mood and history",
-      "offer_id": "product-solution-id",
-      "type": "product_recommendation|solution_consultation|business_growth|technical_support|pricing_inquiry|follow_up|empathy_response",
-      "confidence": 0.85,
-      "deliver_as": "say|show|email",
-      "reasoning": "Why this suggestion was chosen based on mood and history"
-    }
-  ],
-  "metadata": {
-    "reason": "Overall strategy based on customer mood and history",
-    "used_context_ids": ["product-1", "history-1"],
-    "mood_considerations": "How customer mood influenced the suggestions"
-  }
-}`;
+    const prompt = buildPrompt.salesSuggestions(transcript, moodAnalysis, clientHistory, relevantContext, productInfo);
 
     console.log('🚀 Sending request to OpenAI...');
     const response = await openaiClient.client.chat.completions.create({
@@ -577,7 +521,7 @@ OUTPUT FORMAT (JSON only):
       messages: [
         {
           role: "system",
-          content: "You are a FoodHub Sales Agent AI. You must respond with ONLY valid JSON. Do not wrap the JSON in markdown code blocks, do not add any explanatory text, and do not include any text before or after the JSON. The response must start with { and end with }."
+          content: PROMPTS.SYSTEM.SALES_AGENT
         },
         {
           role: "user",

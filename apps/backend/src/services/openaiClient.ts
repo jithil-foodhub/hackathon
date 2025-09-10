@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
+import { PROMPTS, buildPrompt } from '../prompts';
 import fs from 'fs';
 import path from 'path';
 
@@ -53,39 +54,6 @@ export class OpenAIClient {
     }
   }
 
-  private getDefaultPromptTemplate(): string {
-    return `You are an AI sales assistant. Based on the conversation transcript and relevant offers, generate 1-2 short pitch suggestions.
-
-CONVERSATION TRANSCRIPT:
-{transcript}
-
-RELEVANT OFFERS:
-{offers}
-
-INSTRUCTIONS:
-- Generate 1-2 short, actionable pitch suggestions
-- Each suggestion should be 1-2 sentences maximum
-- Focus on the most relevant offer based on the conversation context
-- Consider the customer's needs and pain points mentioned
-- Make suggestions natural and conversational
-
-OUTPUT FORMAT (JSON only):
-{
-  "suggestions": [
-    {
-      "text": "Short pitch text here",
-      "offer_id": "offer-1",
-      "type": "upsell|cross-sell|retention|new-offer",
-      "confidence": 0.85,
-      "deliver_as": "say|show|email"
-    }
-  ],
-  "metadata": {
-    "reason": "Brief explanation of why these suggestions were chosen",
-    "used_context_ids": ["offer-1", "offer-2"]
-  }
-}`;
-  }
 
   async generateSuggestions(
     transcript: string,
@@ -97,14 +65,14 @@ OUTPUT FORMAT (JSON only):
     }
 
     try {
-      const prompt = this.buildPrompt(transcript, relevantOffers);
+      const prompt = buildPrompt.legacySalesAssistant(transcript, relevantOffers);
       
       const response = await this.client.chat.completions.create({
         model: process.env.OPENAI_MODEL!,
         messages: [
           {
             role: 'system',
-            content: 'You are an AI sales assistant. Always respond with valid JSON only, no additional text.'
+            content: PROMPTS.SYSTEM.AI_SALES_ASSISTANT
           },
           {
             role: 'user',
@@ -129,21 +97,6 @@ OUTPUT FORMAT (JSON only):
     }
   }
 
-  private buildPrompt(transcript: string, relevantOffers: any[]): string {
-    const offersText = relevantOffers.map(offer => 
-      `ID: ${offer.id}
-Title: ${offer.title}
-Description: ${offer.description}
-Category: ${offer.category}
-Price: ${offer.price || 'Not specified'}
-Target: ${offer.target_audience}
-Keywords: ${offer.keywords.join(', ')}`
-    ).join('\n\n');
-
-    return this.promptTemplate
-      .replace('{transcript}', transcript)
-      .replace('{offers}', offersText);
-  }
 
   private generateMockSuggestions(
     transcript: string,

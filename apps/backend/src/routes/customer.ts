@@ -5,6 +5,7 @@ import { WebSocketManager } from "../services/websocket";
 import { LatencyProfiler } from "../services/latencyProfiler";
 import { FoodHubService } from "../services/foodhubService";
 import { OpenAIClient } from "../services/openaiClient";
+import { PROMPTS, buildPrompt } from "../prompts";
 
 // Load environment variables
 dotenv.config({ path: path.join(__dirname, "../../../.env") });
@@ -43,7 +44,7 @@ export function customerSimulation(
 
       // Get comprehensive FoodHub context for AI processing
       const foodHubContext = foodhubService.getFoodHubContext();
-      const relevantContext = foodhubService.extractRelevantContext(message);
+      const relevantContext = await foodhubService.extractRelevantContext(message);
       const productInfo = foodhubService.getProductInfo(message);
 
       console.log(`📊 FoodHub Context Analysis:`, {
@@ -152,18 +153,18 @@ async function generateFoodHubSalesResponse(
 
   try {
     // Create a comprehensive prompt for FoodHub sales agent
-    const prompt = buildFoodHubSalesPrompt(message, foodHubContext);
+    const prompt = buildPrompt.foodhubSales(message, foodHubContext);
     console.log("🍕 Using OpenAI for FoodHub sales response");
 
     // Use OpenAI directly with the custom prompt
     const response = await openaiClient.client.chat.completions.create({
       // model: "gpt-4",
-      model: "gpt-4o-mini",
+      model: process.env.OPENAI_MODEL!,
       messages: [
         {
           role: "system",
           content:
-            "You are a FoodHub Sales Agent AI with comprehensive knowledge of FoodHub's products, services, and business model. Always respond with valid JSON only, no additional text. Generate dynamic, personalized responses based on the provided context.",
+            PROMPTS.SYSTEM.SALES_AGENT_SIMPLE,
         },
         {
           role: "user",
@@ -202,68 +203,6 @@ async function generateFoodHubSalesResponse(
   }
 }
 
-function buildFoodHubSalesPrompt(message: string, foodHubContext: any): string {
-  return `You are a friendly, knowledgeable FoodHub Sales Agent with deep expertise in restaurant technology. You understand the challenges food businesses face and how technology can solve them. You're conversational, helpful, and genuinely excited about helping restaurants succeed.
-
-CUSTOMER INQUIRY: "${message}"
-
-RELEVANT FOODHUB SOLUTIONS:
-${foodHubContext.relevantContext}
-
-SPECIFIC PRODUCT DETAILS:
-${foodHubContext.productInfo}
-
-COMPANY CREDIBILITY:
-${foodHubContext.companyStats}
-
-GLOBAL REACH:
-${foodHubContext.globalOperations}
-
-WHY CHOOSE FOODHUB:
-${foodHubContext.competitiveAdvantages}
-
-INVESTMENT & PRICING:
-${foodHubContext.pricingInfo}
-
-ONGOING SUPPORT:
-${foodHubContext.supportInfo}
-
-YOUR APPROACH:
-- Be genuinely helpful and solution-oriented
-- Speak like a knowledgeable friend who understands their business
-- Use specific product names and features (Fusion EPOS, Android POS, Kiosk Pro, etc.)
-- Mention real benefits they'll see (efficiency, cost savings, customer satisfaction)
-- Reference our 30,000+ partners and trusted brands (Papa Johns, Subway, etc.)
-- Be conversational but professional
-- Ask follow-up questions when appropriate
-- Focus on solving their specific pain points
-
-RESPONSE STYLE:
-- Start with understanding their needs
-- Recommend specific solutions with clear benefits
-- Mention relevant features and capabilities
-- Include social proof or success stories
-- End with next steps or offer to help further
-
-Generate 1-2 natural, helpful responses that feel like talking to an expert who genuinely wants to help their business succeed.
-
-OUTPUT FORMAT (JSON only):
-{
-  "suggestions": [
-    {
-      "text": "Natural, helpful response that addresses their specific needs",
-      "offer_id": "specific-solution-id",
-      "type": "product_recommendation|solution_consultation|business_growth|technical_support|pricing_inquiry",
-      "confidence": 0.85,
-      "deliver_as": "say|show|email"
-    }
-  ],
-  "metadata": {
-    "reason": "Why these solutions were recommended based on their specific business needs",
-    "used_context_ids": ["solution-1", "feature-1"]
-  }
-}`;
-}
 
 // All static responses removed - only AI-generated responses allowed
 

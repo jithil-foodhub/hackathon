@@ -1,5 +1,6 @@
 import { OpenAI } from 'openai';
 import { CallRecord } from '../models/CallRecord';
+import { PROMPTS, buildPrompt } from '../prompts';
 import fs from 'fs';
 import path from 'path';
 
@@ -64,51 +65,14 @@ export class PreferenceAnalysisService {
       .map(call => call.transcript)
       .join('\n\n---\n\n');
 
-    const prompt = `You are an expert food preference analyst for FoodHub. Analyze the following call transcripts to extract detailed client preferences for food ordering and restaurant selection.
-
-FoodHub Context:
-${PreferenceAnalysisService.foodhubContext}
-
-Call Transcripts:
-${allTranscripts}
-
-Based on the conversations, extract the client's preferences in the following JSON format:
-
-{
-  "cuisineTypes": ["Italian", "Chinese", "Indian", "Mexican", "Thai", "Japanese", "Mediterranean", "American", "French", "Korean", "Vietnamese", "Middle Eastern", "Greek", "Spanish", "German", "British", "Caribbean", "Ethiopian", "Peruvian", "Brazilian"],
-  "dietaryRestrictions": ["vegetarian", "vegan", "gluten-free", "dairy-free", "nut-free", "halal", "kosher", "keto", "paleo", "low-carb", "low-sodium", "diabetic-friendly"],
-  "priceRange": "budget|mid-range|premium",
-  "preferredMealTimes": ["breakfast", "lunch", "dinner", "brunch", "late-night", "snacks"],
-  "favoriteDishes": ["specific dish names mentioned"],
-  "dislikedIngredients": ["ingredients they don't like"],
-  "specialOccasions": ["birthday", "anniversary", "business meeting", "date night", "family gathering", "celebration"],
-  "deliveryPreferences": ["fast delivery", "scheduled delivery", "contactless", "specific time slots"],
-  "restaurantType": ["fine dining", "casual dining", "fast food", "food truck", "cafe", "bistro", "buffet", "takeout only"],
-  "ambiance": ["romantic", "family-friendly", "business", "casual", "upscale", "cozy", "lively", "quiet"],
-  "serviceStyle": ["quick service", "full service", "self-service", "counter service"],
-  "budgetRange": {"min": 0, "max": 100},
-  "frequency": "daily|weekly|monthly|occasional",
-  "groupSize": "solo|couple|family|group",
-  "locationPreferences": ["downtown", "suburbs", "near work", "near home", "specific neighborhoods"]
-}
-
-Guidelines:
-1. Only include preferences that are explicitly mentioned or strongly implied
-2. If no specific information is available, use reasonable defaults
-3. For budget range, estimate based on price mentions (e.g., "expensive" = premium, "cheap" = budget)
-4. For frequency, estimate based on call frequency and urgency
-5. For group size, consider mentions of "we", "family", "date", etc.
-6. Be conservative - only include preferences you're confident about
-7. If a category has no clear preference, use an empty array or reasonable default
-
-Return only the JSON object, no additional text.`;
+    const prompt = buildPrompt.preferenceAnalysis(transcripts);
 
     try {
       const response = await PreferenceAnalysisService.openai.chat.completions.create({
         model: model,
         messages: [
-          { role: 'system', content: prompt },
-          { role: 'user', content: allTranscripts }
+          { role: 'system', content: PROMPTS.SYSTEM.PREFERENCE_ANALYST },
+          { role: 'user', content: prompt }
         ],
         temperature: 0.3,
         response_format: { type: "json_object" },
@@ -186,42 +150,14 @@ Return only the JSON object, no additional text.`;
     await PreferenceAnalysisService.loadFoodHubContext();
     const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
-    const prompt = `You are a marketing copywriter for FoodHub. Based on the client's preferences, generate personalized content for their food ordering website.
-
-Client Preferences:
-${JSON.stringify(preferences, null, 2)}
-
-FoodHub Context:
-${PreferenceAnalysisService.foodhubContext}
-
-Generate personalized content in the following JSON format:
-
-{
-  "heroTitle": "Personalized hero title based on their preferences",
-  "heroSubtitle": "Compelling subtitle that speaks to their specific tastes",
-  "featuredCuisines": ["3-4 cuisine types they prefer"],
-  "recommendedDishes": ["4-6 dish names they might like"],
-  "specialOffers": ["2-3 offers tailored to their preferences"],
-  "restaurantHighlights": ["2-3 restaurant types they prefer"],
-  "callToAction": "Personalized call-to-action text"
-}
-
-Guidelines:
-1. Make the content feel personal and tailored to their specific preferences
-2. Use their favorite cuisine types and dishes prominently
-3. Consider their budget range and dining frequency
-4. Make offers relevant to their group size and occasion preferences
-5. Use warm, inviting language that makes them feel special
-6. Keep it concise but compelling
-
-Return only the JSON object, no additional text.`;
+    const prompt = buildPrompt.marketingContent(preferences);
 
     try {
       const response = await PreferenceAnalysisService.openai.chat.completions.create({
         model: model,
         messages: [
-          { role: 'system', content: prompt },
-          { role: 'user', content: JSON.stringify(preferences) }
+          { role: 'system', content: PROMPTS.SYSTEM.MARKETING_COPYWRITER },
+          { role: 'user', content: prompt }
         ],
         temperature: 0.7,
         response_format: { type: "json_object" },

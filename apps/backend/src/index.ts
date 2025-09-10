@@ -183,6 +183,13 @@ app.post('/api/test-websocket', (req, res) => {
   });
 });
 
+// RAG test endpoints
+import { testRagQuery, getVectorStoreStats, resetVectorStore, testContextExtraction } from './routes/ragTest';
+app.post('/api/rag/test-query', testRagQuery);
+app.get('/api/rag/stats', getVectorStoreStats);
+app.post('/api/rag/reset', resetVectorStore);
+app.post('/api/rag/test-context', testContextExtraction);
+
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', err);
