@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Users, Phone, Search, Plus, Calendar, MessageSquare } from "lucide-react";
+import { Users, Phone, Search, Plus, Calendar, MessageSquare, Trash2, AlertTriangle } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 
 interface Client {
@@ -27,6 +27,9 @@ export default function ClientsPage() {
     status: "prospect",
     notes: ""
   });
+  const [showClearModal, setShowClearModal] = useState(false);
+  const [clientToClear, setClientToClear] = useState<Client | null>(null);
+  const [isClearing, setIsClearing] = useState(false);
 
   useEffect(() => {
     fetchClients();
@@ -69,6 +72,40 @@ export default function ClientsPage() {
 
   const handleClientClick = (client: Client) => {
     router.push(`/clients/${client._id}`);
+  };
+
+  const handleClearData = (client: Client, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
+    setClientToClear(client);
+    setShowClearModal(true);
+  };
+
+  const confirmClearData = async () => {
+    if (!clientToClear) return;
+    
+    try {
+      setIsClearing(true);
+      const response = await fetch(`/api/clients/${clientToClear._id}/clear-data`, {
+        method: 'DELETE',
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Remove client from list
+        setClients(prev => prev.filter(c => c._id !== clientToClear._id));
+        setShowClearModal(false);
+        setClientToClear(null);
+        alert('Client data cleared successfully');
+      } else {
+        alert(data.error || 'Failed to clear client data');
+      }
+    } catch (error) {
+      console.error('Error clearing client data:', error);
+      alert('Error clearing client data');
+    } finally {
+      setIsClearing(false);
+    }
   };
 
   const filteredClients = clients.filter(client =>
@@ -206,9 +243,19 @@ export default function ClientsPage() {
                   <Calendar className="w-4 h-4 mr-1" />
                   {new Date(client.createdAt).toLocaleDateString()}
                 </div>
-                <div className="flex items-center text-blue-600 hover:text-blue-800">
-                  <MessageSquare className="w-4 h-4 mr-1" />
-                  <span className="text-sm font-medium">View Details</span>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={(e) => handleClearData(client, e)}
+                    className="flex items-center px-2 py-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                    title="Clear all client data"
+                  >
+                    <Trash2 className="w-4 h-4 mr-1" />
+                    <span className="text-sm font-medium">Clear Data</span>
+                  </button>
+                  <div className="flex items-center text-blue-600 hover:text-blue-800">
+                    <MessageSquare className="w-4 h-4 mr-1" />
+                    <span className="text-sm font-medium">View Details</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -296,6 +343,74 @@ export default function ClientsPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Clear Data Confirmation Modal */}
+        {showClearModal && clientToClear && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
+              <div className="p-6">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="p-2 bg-red-100 rounded-lg">
+                    <AlertTriangle className="w-6 h-6 text-red-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">
+                      Clear Client Data
+                    </h3>
+                    <p className="text-sm text-slate-600">
+                      This action cannot be undone
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="mb-6">
+                  <p className="text-slate-700 mb-3">
+                    Are you sure you want to clear all data for client <strong>{clientToClear.phoneNumber}</strong>?
+                  </p>
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-sm text-red-800 font-medium mb-1">This will permanently delete:</p>
+                    <ul className="text-sm text-red-700 space-y-1 list-disc list-inside">
+                      <li>All call records and transcripts</li>
+                      <li>AI suggestions and analysis</li>
+                      <li>Client preferences and website data</li>
+                      <li>All metrics and analytics</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end space-x-3">
+                  <button
+                    onClick={() => {
+                      setShowClearModal(false);
+                      setClientToClear(null);
+                    }}
+                    className="px-4 py-2 text-slate-600 hover:text-slate-800 transition-colors"
+                    disabled={isClearing}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmClearData}
+                    disabled={isClearing}
+                    className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {isClearing ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span>Clearing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-4 h-4" />
+                        <span>Clear All Data</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

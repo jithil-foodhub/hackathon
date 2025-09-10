@@ -30,6 +30,9 @@ interface TwilioCallData {
   CallerCity?: string;
   CallerState?: string;
   CallerCountry?: string;
+  CallStartTime?: string;
+  CallEndTime?: string;
+  Timestamp?: string;
 }
 
 interface MoodAnalysis {
@@ -106,10 +109,12 @@ async function handleCallStart(callData: TwilioCallData, res: Response) {
     
     console.log('🔍 Creating call record...');
     // Create call record for this call
+    const callStartTime = callData.CallStartTime ? new Date(callData.CallStartTime) : new Date();
     const callRecord = new CallRecord({
       clientId: client._id,
       phoneNumber: callData.From,
-      timestamp: new Date(),
+      timestamp: callStartTime,
+      callStartTime: callStartTime,
       duration: 0,
       transcript: '',
       mood: 'neutral',
@@ -158,14 +163,18 @@ async function handleCallCompleted(
     // Find or create client based on phone number
     const client = await findOrCreateClient(callData.From, callData.To);
     
-    // Get call duration
+    // Get call duration and times
     const duration = callData.Duration ? parseInt(callData.Duration) : 0;
+    const callEndTime = new Date(); // Current time when call completed
+    const callStartTime = callData.CallStartTime ? new Date(callData.CallStartTime) : new Date(callEndTime.getTime() - duration * 1000);
     
     // Create call record
     const callRecord = new CallRecord({
       clientId: client._id,
       phoneNumber: callData.From,
-      timestamp: new Date(),
+      timestamp: callStartTime,
+      callStartTime: callStartTime,
+      callEndTime: callEndTime,
       duration: duration,
       transcript: callData.TranscriptionText || '',
       mood: 'neutral', // Will be updated when transcript is processed
@@ -222,12 +231,19 @@ async function handleCallEnded(
     // Find or create client
     const client = await findOrCreateClient(callData.From, callData.To);
     
+    // Get call duration and times
+    const duration = callData.Duration ? parseInt(callData.Duration) : 0;
+    const callEndTime = new Date(); // Current time when call ended
+    const callStartTime = callData.CallStartTime ? new Date(callData.CallStartTime) : new Date(callEndTime.getTime() - duration * 1000);
+    
     // Create call record for failed/busy calls
     const callRecord = new CallRecord({
       clientId: client._id,
       phoneNumber: callData.From,
-      timestamp: new Date(),
-      duration: callData.Duration ? parseInt(callData.Duration) : 0,
+      timestamp: callStartTime,
+      callStartTime: callStartTime,
+      callEndTime: callEndTime,
+      duration: duration,
       transcript: 'Call ended without completion',
       mood: 'neutral',
       sentiment: 0,

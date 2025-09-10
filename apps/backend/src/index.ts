@@ -17,7 +17,7 @@ import { getAnalytics, getCallSummary } from './routes/analytics';
 import { generateSuggestion } from './routes/api';
 import { customerSimulation } from './routes/customer';
 import { clientTranscriptWebhook } from './routes/webhook';
-import { getClients, getClient, createClient, updateClient, deleteClient, getClientStats, getClientCalls } from './routes/clients';
+import { getClients, getClient, createClient, updateClient, deleteClient, getClientStats, getClientCalls, clearClientData } from './routes/clients';
 import { analyzeClientPreferences, generatePersonalizedWebsite, deployWebsite, getClientSites, deleteClientSite, modifyWebsite, generateWebsitePreview, deleteWebsite, cleanupWebsites } from './routes/clientPreferences';
 import { mongoDBService } from './services/mongodb';
 import { WebSocketManager } from './services/websocket';
@@ -127,6 +127,7 @@ app.get('/sites/:clientId/:fileName', (req, res) => {
 app.post('/api/clients', createClient);
 app.put('/api/clients/:id', updateClient);
 app.delete('/api/clients/:id', deleteClient);
+app.delete('/api/clients/:clientId/clear-data', clearClientData);
 
 // Health check
 app.get('/health', (req, res) => {

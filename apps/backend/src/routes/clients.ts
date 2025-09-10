@@ -307,3 +307,43 @@ export async function getClientCalls(req: Request, res: Response) {
     });
   }
 }
+
+// Clear all data for a specific client
+export async function clearClientData(req: Request, res: Response) {
+  try {
+    const { clientId } = req.params;
+    
+    console.log(`🗑️ Clearing all data for client ${clientId}`);
+    
+    // Delete all call records for this client
+    const callRecordsResult = await CallRecord.deleteMany({ clientId });
+    console.log(`📞 Deleted ${callRecordsResult.deletedCount} call records`);
+    
+    // Delete the client itself
+    const clientResult = await Client.findByIdAndDelete(clientId);
+    if (!clientResult) {
+      return res.status(404).json({
+        success: false,
+        error: 'Client not found'
+      });
+    }
+    
+    console.log(`👤 Deleted client: ${clientResult.phoneNumber}`);
+    
+    res.json({
+      success: true,
+      data: {
+        message: 'Client data cleared successfully',
+        deletedCallRecords: callRecordsResult.deletedCount,
+        clientPhoneNumber: clientResult.phoneNumber
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error clearing client data:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to clear client data'
+    });
+  }
+}

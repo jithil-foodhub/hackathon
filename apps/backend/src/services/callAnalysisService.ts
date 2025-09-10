@@ -91,6 +91,159 @@ export class CallAnalysisService {
   }
 
   /**
+   * Generate AI-powered agent feedback based on call transcript and analysis
+   */
+  static async generateAgentFeedback(transcript: string, callAnalysis: any): Promise<any> {
+    try {
+      console.log('🤖 Generating AI agent feedback...');
+      
+      const prompt = buildPrompt.agentFeedback(transcript, callAnalysis);
+
+      const response = await openai.chat.completions.create({
+        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert sales coach and performance analyst. Provide specific, actionable feedback for sales agents based on their call performance. Focus on concrete examples from the transcript and give practical advice for improvement."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 800
+      });
+
+      const content = response.choices?.[0]?.message?.content;
+      if (content) {
+        // Clean and parse JSON response
+        let jsonContent = content.trim();
+        if (jsonContent.startsWith('```json')) {
+          jsonContent = jsonContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+        } else if (jsonContent.startsWith('```')) {
+          jsonContent = jsonContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
+        }
+        
+        const jsonMatch = jsonContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          jsonContent = jsonMatch[0];
+        }
+        
+        const feedback = JSON.parse(jsonContent);
+        console.log('✅ Agent feedback generated successfully');
+        return feedback;
+      }
+    } catch (error) {
+      console.error('❌ Error generating agent feedback:', error);
+    }
+    
+    // Fallback feedback
+    return {
+      performanceScore: 6,
+      strengths: ["Maintained professional tone throughout the call"],
+      improvements: ["Could ask more engaging questions to understand customer needs better"],
+      conversationQuality: {
+        rating: 6,
+        feedback: "Basic conversation flow maintained, room for improvement in engagement"
+      },
+      salesTechniques: {
+        rating: 5,
+        feedback: "Standard approach used, could benefit from more personalized techniques",
+        suggestions: ["Use more open-ended questions", "Provide specific examples relevant to customer needs"]
+      },
+      customerHandling: {
+        rating: 7,
+        feedback: "Customer concerns were acknowledged appropriately",
+        suggestions: ["Follow up on specific customer mentions", "Address concerns more proactively"]
+      },
+      nextSteps: [
+        "Review customer's specific needs mentioned in the call",
+        "Prepare relevant examples for next conversation",
+        "Follow up on any commitments made during the call"
+      ],
+      overallFeedback: "Good foundation with opportunities for more personalized engagement and proactive customer service."
+    };
+  }
+
+  /**
+   * Generate AI-powered call summary
+   */
+  static async generateCallSummary(transcript: string, callAnalysis: any, agentFeedback: any): Promise<any> {
+    try {
+      console.log('📝 Generating AI call summary...');
+      
+      const prompt = buildPrompt.callSummary(transcript, callAnalysis, agentFeedback);
+
+      const response = await openai.chat.completions.create({
+        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert call analyst and sales coach. Generate a comprehensive, human-readable summary of how a sales call went. Focus on customer tone, expectations, conversion attempts, and strategic recommendations. Be specific and actionable."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 600
+      });
+
+      const content = response.choices?.[0]?.message?.content;
+      if (content) {
+        // Clean and parse JSON response
+        let jsonContent = content.trim();
+        if (jsonContent.startsWith('```json')) {
+          jsonContent = jsonContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+        } else if (jsonContent.startsWith('```')) {
+          jsonContent = jsonContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
+        }
+        
+        const jsonMatch = jsonContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          jsonContent = jsonMatch[0];
+        }
+        
+        const summary = JSON.parse(jsonContent);
+        
+        // Validate and fix expectationsMet field
+        if (summary.expectationsMet !== undefined) {
+          if (typeof summary.expectationsMet === 'string') {
+            // Convert string to boolean based on content
+            const lowerStr = summary.expectationsMet.toLowerCase();
+            summary.expectationsMet = lowerStr.includes('yes') || 
+                                    lowerStr.includes('met') || 
+                                    lowerStr.includes('fulfilled') || 
+                                    lowerStr.includes('satisfied') ||
+                                    lowerStr === 'true';
+          } else if (typeof summary.expectationsMet !== 'boolean') {
+            summary.expectationsMet = true; // Default to true
+          }
+        } else {
+          summary.expectationsMet = true; // Default to true if missing
+        }
+        
+        console.log('✅ Call summary generated successfully');
+        return summary;
+      }
+    } catch (error) {
+      console.error('❌ Error generating call summary:', error);
+    }
+    
+    // Fallback summary
+    return {
+      overallAssessment: "Call completed with standard interaction. Customer engagement was moderate.",
+      customerTone: "Customer maintained a professional tone throughout the conversation.",
+      expectationsMet: true,
+      conversionAttempt: "Agent made standard conversion attempts but could have been more specific about benefits.",
+      keyOutcomes: ["Customer showed interest", "Follow-up discussion planned"],
+      nextCallStrategy: "Focus on addressing specific customer needs and providing more detailed value propositions."
+    };
+  }
+
+  /**
    * Parse transcript into structured segments
    */
   private static parseTranscript(transcript: string) {
@@ -201,7 +354,17 @@ export class CallAnalysisService {
           jsonContent = jsonMatch[0];
         }
         
-        return JSON.parse(jsonContent);
+        const analysis = JSON.parse(jsonContent);
+        
+        // Convert 1-10 scale to 0-1 scale for consistency
+        if (analysis.customerEngagement && analysis.customerEngagement > 1) {
+          analysis.customerEngagement = analysis.customerEngagement / 10;
+        }
+        if (analysis.agentPerformance && analysis.agentPerformance > 1) {
+          analysis.agentPerformance = analysis.agentPerformance / 10;
+        }
+        
+        return analysis;
       }
     } catch (error) {
       console.error('Error in AI analysis:', error);
@@ -427,6 +590,81 @@ export class CallAnalysisService {
         improvements: ["Enhance customer engagement"],
         recommendations: ["Follow up as needed"],
         riskFactors: []
+      }
+    };
+  }
+
+  /**
+   * Generate enhanced call analysis with mood, competitors, jargon, business details, and key information
+   */
+  static async generateEnhancedAnalysis(transcript: string): Promise<any> {
+    try {
+      console.log('🔍 Generating enhanced call analysis...');
+      
+      const prompt = buildPrompt.enhancedAnalysis(transcript);
+
+      const response = await openai.chat.completions.create({
+        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert call analyst for FoodHub. Analyze call transcripts to extract detailed insights including mood analysis, competitor mentions, jargon detection, business details, and key information summaries. Be thorough and accurate in your analysis."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 1000
+      });
+
+      const content = response.choices?.[0]?.message?.content;
+      if (content) {
+        // Clean and parse JSON response
+        let jsonContent = content.trim();
+        if (jsonContent.startsWith('```json')) {
+          jsonContent = jsonContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+        } else if (jsonContent.startsWith('```')) {
+          jsonContent = jsonContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
+        }
+        
+        const jsonMatch = jsonContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          jsonContent = jsonMatch[0];
+        }
+        
+        const analysis = JSON.parse(jsonContent);
+        console.log('✅ Enhanced analysis generated successfully');
+        return analysis;
+      }
+    } catch (error) {
+      console.error('❌ Error generating enhanced analysis:', error);
+    }
+    
+    // Fallback analysis
+    return {
+      moodAnalysis: {
+        mood: 'neutral',
+        confidence: 0.5,
+        reasoning: 'Unable to determine mood from transcript'
+      },
+      competitorAnalysis: {
+        competitors: []
+      },
+      jargonDetection: {
+        jargon: []
+      },
+      businessDetails: {
+        cuisineTypes: [],
+        address: '',
+        postcode: '',
+        businessType: ''
+      },
+      keyInformation: {
+        summary: ['Call completed with standard interaction'],
+        importantPoints: [],
+        actionItems: []
       }
     };
   }

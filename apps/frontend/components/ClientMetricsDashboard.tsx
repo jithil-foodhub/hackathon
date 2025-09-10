@@ -21,6 +21,8 @@ import {
 interface CallRecord {
   _id: string;
   timestamp: string;
+  callStartTime?: string;
+  callEndTime?: string;
   duration: number;
   direction: 'inbound' | 'outbound';
   status: string;
@@ -95,7 +97,8 @@ export function ClientMetricsDashboard({ clientId, callRecords }: ClientMetricsD
     }
 
     const totalCalls = callRecords.length;
-    const averageDuration = callRecords.reduce((sum, call) => sum + call.duration, 0) / totalCalls / 60; // minutes
+    const totalDurationSeconds = callRecords.reduce((sum, call) => sum + (call.duration || 0), 0);
+    const averageDuration = totalCalls > 0 ? totalDurationSeconds / totalCalls : 0; // seconds
     
     const averageSatisfaction = recordsWithAnalysis.reduce((sum, call) => 
       sum + (call.callAnalysis?.metrics?.customerSatisfaction || 0), 0) / recordsWithAnalysis.length;
@@ -143,9 +146,24 @@ export function ClientMetricsDashboard({ clientId, callRecords }: ClientMetricsD
         engagement: call.callAnalysis?.customerEngagement || 0
       }));
 
+    // Format duration for display
+    const formatDuration = (seconds: number) => {
+      if (seconds < 60) {
+        return `${Math.round(seconds)}s`;
+      } else if (seconds < 3600) {
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = Math.round(seconds % 60);
+        return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+      } else {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+      }
+    };
+
     return {
       totalCalls,
-      averageDuration: Math.round(averageDuration),
+      averageDuration: formatDuration(averageDuration),
       averageSatisfaction: Math.round(averageSatisfaction * 100) / 100,
       averageEngagement: Math.round(averageEngagement * 100) / 100,
       averagePerformance: Math.round(averagePerformance * 100) / 100,
@@ -163,29 +181,69 @@ export function ClientMetricsDashboard({ clientId, callRecords }: ClientMetricsD
 
   // Chart components
   const SentimentTrendChart = () => (
-    <div className="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
-      <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center">
-        <TrendingUp className="w-5 h-5 mr-2 text-blue-600" />
+    <div className="bg-white rounded-xl shadow-lg p-8 border border-slate-200">
+      <h3 className="text-xl font-semibold text-slate-900 mb-6 flex items-center">
+        <TrendingUp className="w-6 h-6 mr-3 text-blue-600" />
         Sentiment Trend Over Time
       </h3>
-      <div className="h-64 flex items-center justify-center">
-        <div className="text-center">
-          <LineChart className="w-12 h-12 mx-auto mb-2 text-slate-400" />
-          <p className="text-slate-500">Sentiment trend chart will be displayed here</p>
-          <div className="mt-4 space-y-2">
-            {metrics.sentimentTrend.slice(-5).map((point, index) => (
-              <div key={index} className="flex items-center justify-between text-sm">
-                <span>{point.date}</span>
-                <div className="flex items-center space-x-2">
-                  <div className={`w-3 h-3 rounded-full ${
-                    point.sentiment > 0.3 ? 'bg-green-500' :
-                    point.sentiment < -0.3 ? 'bg-red-500' : 'bg-yellow-500'
-                  }`}></div>
-                  <span className="text-slate-600">{point.sentiment.toFixed(2)}</span>
-                </div>
-              </div>
-            ))}
+      
+      {/* Sentiment Context Legend - Improved Layout */}
+      <div className="mb-6 p-4 bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl border border-slate-200">
+        <h4 className="text-sm font-semibold text-slate-700 mb-3">Sentiment Scale</h4>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border border-green-200">
+            <div className="w-4 h-4 rounded-full bg-green-500"></div>
+            <div>
+              <span className="text-green-700 font-semibold text-sm">Positive (0.3+)</span>
+              <p className="text-xs text-slate-600">Customer engaged, satisfied</p>
+            </div>
           </div>
+          <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border border-yellow-200">
+            <div className="w-4 h-4 rounded-full bg-yellow-500"></div>
+            <div>
+              <span className="text-yellow-700 font-semibold text-sm">Neutral (-0.3 to 0.3)</span>
+              <p className="text-xs text-slate-600">Standard interaction</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-3 p-3 bg-white rounded-lg border border-red-200">
+            <div className="w-4 h-4 rounded-full bg-red-500"></div>
+            <div>
+              <span className="text-red-700 font-semibold text-sm">Negative (-0.3-)</span>
+              <p className="text-xs text-slate-600">Customer frustrated, needs attention</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Chart Area - Much Larger */}
+      <div className="h-80 flex items-center justify-center bg-slate-50 rounded-xl border-2 border-dashed border-slate-300">
+        <div className="text-center">
+          <LineChart className="w-16 h-16 mx-auto mb-4 text-slate-400" />
+          <h4 className="text-lg font-semibold text-slate-600 mb-2">Sentiment Trend Chart</h4>
+          <p className="text-slate-500 mb-6">Interactive chart will be displayed here</p>
+          
+          {/* Recent Sentiment Data - Better Layout */}
+          {metrics.sentimentTrend.length > 0 && (
+            <div className="bg-white rounded-lg p-4 border border-slate-200 max-w-md mx-auto">
+              <h5 className="text-sm font-semibold text-slate-700 mb-3">Recent Sentiment Data</h5>
+              <div className="space-y-3">
+                {metrics.sentimentTrend.slice(-5).map((point, index) => (
+                  <div key={index} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
+                    <span className="text-sm font-medium text-slate-700">{point.date}</span>
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-4 h-4 rounded-full ${
+                        point.sentiment > 0.3 ? 'bg-green-500' :
+                        point.sentiment < -0.3 ? 'bg-red-500' : 'bg-yellow-500'
+                      }`}></div>
+                      <span className="text-sm font-semibold text-slate-600">
+                        {point.sentiment > 0 ? '+' : ''}{point.sentiment.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -370,7 +428,7 @@ export function ClientMetricsDashboard({ clientId, callRecords }: ClientMetricsD
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-slate-600">Avg Duration</p>
-              <p className="text-3xl font-bold text-slate-900">{metrics.averageDuration}m</p>
+              <p className="text-3xl font-bold text-slate-900">{metrics.averageDuration}</p>
             </div>
             <div className="p-3 bg-green-100 rounded-lg">
               <Clock className="w-6 h-6 text-green-600" />

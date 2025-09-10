@@ -4,6 +4,8 @@ export interface ICallRecord extends Document {
   clientId: mongoose.Types.ObjectId;
   phoneNumber: string;
   timestamp: Date;
+  callStartTime?: Date;
+  callEndTime?: Date;
   duration: number;
   transcript: string;
   mood: 'positive' | 'neutral' | 'negative';
@@ -63,6 +65,73 @@ export interface ICallRecord extends Document {
     };
   };
   
+  // AI-Generated Agent Feedback
+  agentFeedback?: {
+    performanceScore: number; // 1-10 scale
+    strengths: string[];
+    improvements: string[];
+    conversationQuality: {
+      rating: number; // 1-10 scale
+      feedback: string;
+    };
+    salesTechniques: {
+      rating: number; // 1-10 scale
+      feedback: string;
+      suggestions: string[];
+    };
+    customerHandling: {
+      rating: number; // 1-10 scale
+      feedback: string;
+      suggestions: string[];
+    };
+    nextSteps: string[];
+    overallFeedback: string;
+  };
+
+  // AI-Generated Call Summary
+  callSummary?: {
+    overallAssessment: string; // "Call went good, customer's expectations were met..."
+    customerTone: string; // "customer tone was bit arrogant as he is already using some product"
+    expectationsMet: boolean;
+    conversionAttempt: string; // "agent tried best to convert but was lacking in terms of..."
+    keyOutcomes: string[];
+    nextCallStrategy: string;
+  };
+
+  // Enhanced Call Analysis
+  enhancedAnalysis?: {
+    moodAnalysis: {
+      mood: 'positive' | 'neutral' | 'negative';
+      confidence: number;
+      reasoning: string;
+    };
+    competitorAnalysis: {
+      competitors: Array<{
+        name: string;
+        highlights: string[];
+        context: string;
+      }>;
+    };
+    jargonDetection: {
+      jargon: Array<{
+        term: string;
+        context: string;
+        needsClarification: boolean;
+      }>;
+    };
+    businessDetails: {
+      cuisineTypes: string[];
+      address: string;
+      postcode: string;
+      businessType: string;
+    };
+    keyInformation: {
+      summary: string[];
+      importantPoints: string[];
+      actionItems: string[];
+    };
+  };
+  
   metadata?: {
     callerId?: string;
     location?: string;
@@ -90,6 +159,14 @@ const CallRecordSchema = new Schema<ICallRecord>({
     type: Date,
     required: true,
     default: Date.now
+  },
+  callStartTime: {
+    type: Date,
+    required: false
+  },
+  callEndTime: {
+    type: Date,
+    required: false
   },
   duration: {
     type: Number,
@@ -179,6 +256,67 @@ const CallRecordSchema = new Schema<ICallRecord>({
       improvements: [String],
       recommendations: [String],
       riskFactors: [String]
+    }
+  },
+  agentFeedback: {
+    performanceScore: { type: Number, min: 1, max: 10 },
+    strengths: [String],
+    improvements: [String],
+    conversationQuality: {
+      rating: { type: Number, min: 1, max: 10 },
+      feedback: String
+    },
+    salesTechniques: {
+      rating: { type: Number, min: 1, max: 10 },
+      feedback: String,
+      suggestions: [String]
+    },
+    customerHandling: {
+      rating: { type: Number, min: 1, max: 10 },
+      feedback: String,
+      suggestions: [String]
+    },
+    nextSteps: [String],
+    overallFeedback: String
+  },
+  callSummary: {
+    overallAssessment: String,
+    customerTone: String,
+    expectationsMet: Boolean,
+    conversionAttempt: String,
+    keyOutcomes: [String],
+    nextCallStrategy: String
+  },
+  enhancedAnalysis: {
+    moodAnalysis: {
+      mood: { type: String, enum: ['positive', 'neutral', 'negative'] },
+      confidence: { type: Number, min: 0, max: 1 },
+      reasoning: String
+    },
+    competitorAnalysis: {
+      competitors: [{
+        name: String,
+        highlights: [String],
+        context: String
+      }]
+    },
+    jargonDetection: {
+      jargon: [{
+        term: String,
+        context: String,
+        needsClarification: Boolean
+      }]
+    },
+    businessDetails: {
+      cuisineTypes: [String],
+      address: String,
+      postcode: String,
+      businessType: String
+    },
+    keyInformation: {
+      summary: [String],
+      importantPoints: [String],
+      actionItems: [String]
     }
   },
   metadata: {

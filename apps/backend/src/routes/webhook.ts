@@ -92,10 +92,15 @@ export function clientTranscriptWebhook(
       console.log(`🤖 Generated ${salesSuggestions.suggestions.length} sales suggestions`);
 
       // Create call record in MongoDB
+      const callStartTime = new Date(transcriptData.timestamp || new Date());
+      const callEndTime = new Date(callStartTime.getTime() + (transcriptData.duration || 0) * 1000);
+      
       const callRecord = new CallRecord({
         clientId: client._id,
         phoneNumber: transcriptData.phoneNumber,
-        timestamp: new Date(transcriptData.timestamp || new Date()),
+        timestamp: callStartTime,
+        callStartTime: callStartTime,
+        callEndTime: callEndTime,
         duration: transcriptData.duration || 0,
         transcript: transcriptData.transcript,
         mood: moodAnalysis.mood,
