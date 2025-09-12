@@ -12,6 +12,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
+import LiveAISuggestions from "../../components/LiveAISuggestions";
 
 interface AISuggestion {
   text: string;

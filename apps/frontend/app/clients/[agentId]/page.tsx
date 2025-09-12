@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { ClientMetricsDashboard } from "@/components/ClientMetricsDashboard";
+import LiveAISuggestions from "@/components/LiveAISuggestions";
 
 interface Client {
   _id: string;
@@ -1389,84 +1390,13 @@ export default function ClientDetailPage() {
           ) : (
             <div className="space-y-6">
               {/* Live AI Suggestions */}
-              <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-purple-100 rounded-lg">
-                      <Brain className="w-6 h-6 text-purple-600" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-900">
-                        Live AI Suggestions
-                      </h3>
-                      <p className="text-sm text-slate-500">
-                        Real-time recommendations during calls
-                      </p>
-                    </div>
-                  </div>
-                  {liveSuggestions.length > 0 && (
-                    <div className="flex items-center space-x-2">
-                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                      <span className="text-sm text-green-600 font-medium">
-                        Live
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {liveSuggestions.length === 0 ? (
-                  <div className="text-center py-12">
-                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Brain className="w-8 h-8 text-slate-400" />
-                    </div>
-                    <h4 className="text-lg font-medium text-slate-900 mb-2">
-                      No Live Suggestions
-                    </h4>
-                    <p className="text-slate-500 mb-4">
-                      AI suggestions will appear here during active calls
-                    </p>
-                    <div className="text-sm text-slate-400 bg-slate-50 rounded-lg p-3 inline-block">
-                      💡 Make sure a call is active and transcription is working
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {liveSuggestions.map((suggestion, index) => (
-                      <div
-                        key={`${suggestion.offer_id}-${index}`}
-                        className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl border border-purple-100 p-4 hover:shadow-md transition-all duration-200"
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center space-x-2">
-                            <div className="p-1.5 bg-white rounded-lg shadow-sm">
-                              {getSuggestionIcon(suggestion.type)}
-                            </div>
-                            <span className="text-xs font-semibold text-purple-700 bg-purple-100 px-2 py-1 rounded-full">
-                              {suggestion.type.replace("_", " ").toUpperCase()}
-                            </span>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                            <span className="text-xs text-slate-500">
-                              {(suggestion.confidence * 100).toFixed(0)}%
-                            </span>
-                          </div>
-                        </div>
-                        <p className="text-sm text-slate-800 mb-3 leading-relaxed line-clamp-3">
-                          {suggestion.text}
-                        </p>
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-slate-500 bg-white px-2 py-1 rounded border">
-                            {suggestion.deliver_as}
-                          </span>
-                          <span className="text-slate-400 font-mono">
-                            {suggestion.offer_id}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <LiveAISuggestions 
+                agentId={agentId}
+                callSid={currentCallSid || undefined}
+                className="w-full"
+                showHeader={true}
+                maxSuggestions={3}
+              />
 
                 {/* Enhanced Analysis Section */}
                 {currentCall?.enhancedAnalysis && (
@@ -1622,6 +1552,7 @@ export default function ClientDetailPage() {
                   </div>
                 )}
               </div>
+            )}
 
               {/* Call History */}
               <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200">
@@ -2328,9 +2259,8 @@ export default function ClientDetailPage() {
                 )}
               </div>
             </div>
-          )}
+          )
         </div>
-      </div>
 
       {/* Transcript Modal */}
       {isTranscriptModalOpen && selectedTranscript && (
@@ -2355,7 +2285,7 @@ export default function ClientDetailPage() {
                 {(() => {
                   // Parse the transcript into speaker segments
                   const segments =
-                    selectedTranscript.match(
+                    selectedTranscript?.match(
                       /\[(Customer|Agent)\]:\s*([^[]*)/g
                     ) || [];
 

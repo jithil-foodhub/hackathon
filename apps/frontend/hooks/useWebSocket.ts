@@ -1,12 +1,21 @@
 export interface WebSocketMessage {
-  conversationId: string;
-  suggestions: any[];
-  metadata: {
+  conversationId?: string;
+  suggestions?: any[];
+  metadata?: {
     reason: string;
     used_context_ids: string[];
     latency?: number;
     timestamp: string;
   };
+  type?: string;
+  callSid?: string;
+  callData?: any;
+  transcript?: string;
+  fullTranscript?: string;
+  speaker?: string;
+  confidence?: number;
+  moodAnalysis?: any;
+  enhancedAnalysis?: any;
 }
 
 export class WebSocketClient {
