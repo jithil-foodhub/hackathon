@@ -131,7 +131,7 @@ interface CallRecord {
   };
   enhancedAnalysis?: {
     moodAnalysis: {
-      mood: 'positive' | 'neutral' | 'negative';
+      mood: "positive" | "neutral" | "negative";
       confidence: number;
       reasoning: string;
     };
@@ -228,17 +228,23 @@ export default function ClientDetailPage() {
   }>({});
 
   // Toggle expanded sections
-  const toggleSection = (callId: string, section: 'agentFeedback' | 'callSummary') => {
-    setExpandedSections(prev => ({
+  const toggleSection = (
+    callId: string,
+    section: "agentFeedback" | "callSummary"
+  ) => {
+    setExpandedSections((prev) => ({
       ...prev,
       [callId]: {
         ...prev[callId],
-        [section]: !prev[callId]?.[section]
-      }
+        [section]: !prev[callId]?.[section],
+      },
     }));
   };
 
-  const isSectionExpanded = (callId: string, section: 'agentFeedback' | 'callSummary') => {
+  const isSectionExpanded = (
+    callId: string,
+    section: "agentFeedback" | "callSummary"
+  ) => {
     return expandedSections[callId]?.[section] || false;
   };
 
@@ -249,7 +255,9 @@ export default function ClientDetailPage() {
     } else if (seconds < 3600) {
       const minutes = Math.floor(seconds / 60);
       const remainingSeconds = seconds % 60;
-      return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+      return remainingSeconds > 0
+        ? `${minutes}m ${remainingSeconds}s`
+        : `${minutes}m`;
     } else {
       const hours = Math.floor(seconds / 3600);
       const minutes = Math.floor((seconds % 3600) / 60);
@@ -280,26 +288,30 @@ export default function ClientDetailPage() {
       if (callsData.success) {
         // Filter out calls with empty/null transcripts and calculate duration
         const filteredCalls = callsData.data
-          .filter((call: CallRecord) => 
-            call.transcript && 
-            call.transcript.trim().length > 0 && 
-            call.transcript !== 'Call ended without completion'
+          .filter(
+            (call: CallRecord) =>
+              call.transcript &&
+              call.transcript.trim().length > 0 &&
+              call.transcript !== "Call ended without completion"
           )
           .map((call: CallRecord) => {
             // Calculate duration from callStartTime and callEndTime if available
             if (call.callStartTime && call.callEndTime) {
               const startTime = new Date(call.callStartTime).getTime();
               const endTime = new Date(call.callEndTime).getTime();
-              const calculatedDuration = Math.round((endTime - startTime) / 1000); // Convert to seconds
-              
+              const calculatedDuration = Math.round(
+                (endTime - startTime) / 1000
+              ); // Convert to seconds
+
               return {
                 ...call,
-                duration: calculatedDuration > 0 ? calculatedDuration : call.duration
+                duration:
+                  calculatedDuration > 0 ? calculatedDuration : call.duration,
               };
             }
             return call;
           });
-        
+
         setCallHistory(filteredCalls);
       }
     } catch (error) {
@@ -378,22 +390,28 @@ export default function ClientDetailPage() {
           message.callRecord?.clientId === agentId
         ) {
           console.log(`✅ Final analysis complete for client ${agentId}`);
-          
+
           // Only add call if it has a valid transcript
-          if (message.callRecord.transcript && 
-              message.callRecord.transcript.trim().length > 0 && 
-              message.callRecord.transcript !== 'Call ended without completion') {
-            
+          if (
+            message.callRecord.transcript &&
+            message.callRecord.transcript.trim().length > 0 &&
+            message.callRecord.transcript !== "Call ended without completion"
+          ) {
             // Calculate duration from callStartTime and callEndTime if available
             let callRecord = { ...message.callRecord };
             if (callRecord.callStartTime && callRecord.callEndTime) {
               const startTime = new Date(callRecord.callStartTime).getTime();
               const endTime = new Date(callRecord.callEndTime).getTime();
-              const calculatedDuration = Math.round((endTime - startTime) / 1000); // Convert to seconds
-              
-              callRecord.duration = calculatedDuration > 0 ? calculatedDuration : callRecord.duration;
+              const calculatedDuration = Math.round(
+                (endTime - startTime) / 1000
+              ); // Convert to seconds
+
+              callRecord.duration =
+                calculatedDuration > 0
+                  ? calculatedDuration
+                  : callRecord.duration;
             }
-            
+
             setCallHistory((prev) => [callRecord, ...prev]);
           }
           setLiveSuggestions([]);
@@ -733,7 +751,7 @@ export default function ClientDetailPage() {
 
   return (
     <AppLayout currentScreen="clients">
-      <div className="p-8 bg-gradient-to-br from-slate-50 to-blue-50 h-full">
+      <div className="p-8 bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8">
@@ -774,162 +792,197 @@ export default function ClientDetailPage() {
             </div>
           </div>
 
+          {/* Live AI Suggestions - Top Priority */}
+          <div className="mb-8">
+            <LiveAISuggestions
+              agentId={agentId}
+              callSid={currentCallSid || undefined}
+              className="w-full"
+              showHeader={true}
+              maxSuggestions={3}
+            />
+          </div>
+
           {/* Client Info Card */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200 mb-8">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-              {/* Client Details */}
-              <div className="lg:col-span-1">
-                <h3 className="text-lg font-semibold text-slate-900 mb-4">
-                  Client Information
-                </h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-600">Phone</span>
-                    <span className="font-medium text-slate-900">
-                      {client.phoneNumber}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-600">Status</span>
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        client.status === "prospect"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : client.status === "lead"
-                          ? "bg-blue-100 text-blue-800"
-                          : client.status === "customer"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-gray-100 text-gray-800"
-                      }`}
-                    >
-                      {client.status}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-600">Created</span>
-                    <span className="font-medium text-slate-900">
-                      {new Date(client.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                  {client.lastCallDate && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-600">Last Call</span>
-                      <span className="font-medium text-slate-900">
-                        {new Date(client.lastCallDate).toLocaleDateString()}
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 mb-8">
+            <div className="p-8">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Client Details */}
+                <div className="lg:col-span-3">
+                  <h3 className="text-lg font-semibold text-slate-900 mb-6">
+                    Client Information
+                  </h3>
+                  <div className="space-y-4">
+                    <div className="flex flex-col space-y-1">
+                      <span className="text-sm text-slate-500 font-medium">
+                        Phone Number
+                      </span>
+                      <span className="text-base font-semibold text-slate-900">
+                        {client.phoneNumber}
                       </span>
                     </div>
-                  )}
-                  {client.mood && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-600">Mood</span>
+                    <div className="flex flex-col space-y-1">
+                      <span className="text-sm text-slate-500 font-medium">
+                        Status
+                      </span>
                       <span
-                        className={`font-medium ${
-                          client.mood === "positive"
-                            ? "text-green-600"
-                            : client.mood === "neutral"
-                            ? "text-yellow-600"
-                            : "text-red-600"
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium w-fit ${
+                          client.status === "prospect"
+                            ? "bg-yellow-100 text-yellow-800"
+                            : client.status === "lead"
+                            ? "bg-blue-100 text-blue-800"
+                            : client.status === "customer"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-gray-100 text-gray-800"
                         }`}
                       >
-                        {client.mood}
+                        {client.status}
                       </span>
                     </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Quick Stats */}
-              <div className="lg:col-span-2">
-                <h3 className="text-lg font-semibold text-slate-900 mb-4">
-                  Quick Stats
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center p-4 bg-slate-50 rounded-lg">
-                    <div className="text-2xl font-bold text-slate-900">
-                      {callHistory.length}
+                    <div className="flex flex-col space-y-1">
+                      <span className="text-sm text-slate-500 font-medium">
+                        Created
+                      </span>
+                      <span className="text-base text-slate-900">
+                        {new Date(client.createdAt).toLocaleDateString()}
+                      </span>
                     </div>
-                    <div className="text-sm text-slate-600">Total Calls</div>
-                  </div>
-                  <div className="text-center p-4 bg-slate-50 rounded-lg">
-                    <div className="text-2xl font-bold text-slate-900">
-                      {callHistory.length > 0
-                        ? Math.round(
-                            callHistory.reduce(
-                              (sum, call) => sum + call.duration,
-                              0
-                            ) /
-                              callHistory.length /
-                              60
-                          )
-                        : 0}
-                      m
-                    </div>
-                    <div className="text-sm text-slate-600">Avg Duration</div>
-                  </div>
-                  <div className="text-center p-4 bg-slate-50 rounded-lg">
-                    <div className="text-2xl font-bold text-slate-900">
-                      {
-                        callHistory.filter(
-                          (call) => call.outcome === "successful"
-                        ).length
-                      }
-                    </div>
-                    <div className="text-sm text-slate-600">Successful</div>
-                  </div>
-                  <div className="text-center p-4 bg-slate-50 rounded-lg">
-                    <div className="text-2xl font-bold text-slate-900">
-                      {liveSuggestions.length}
-                    </div>
-                    <div className="text-sm text-slate-600">
-                      Live Suggestions
-                    </div>
+                    {client.lastCallDate && (
+                      <div className="flex flex-col space-y-1">
+                        <span className="text-sm text-slate-500 font-medium">
+                          Last Call
+                        </span>
+                        <span className="text-base text-slate-900">
+                          {new Date(client.lastCallDate).toLocaleDateString()}
+                        </span>
+                      </div>
+                    )}
+                    {client.mood && (
+                      <div className="flex flex-col space-y-1">
+                        <span className="text-sm text-slate-500 font-medium">
+                          Mood
+                        </span>
+                        <span
+                          className={`text-base font-semibold ${
+                            client.mood === "positive"
+                              ? "text-green-600"
+                              : client.mood === "neutral"
+                              ? "text-yellow-600"
+                              : "text-red-600"
+                          }`}
+                        >
+                          {client.mood}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
 
-              {/* Connection Status */}
-              <div className="lg:col-span-1">
-                <h3 className="text-lg font-semibold text-slate-900 mb-4">
-                  Connection Status
-                </h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-600">WebSocket</span>
-                    <div
-                      className={`flex items-center px-3 py-2 rounded-lg ${
-                        isConnected
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
-                      }`}
-                    >
+                {/* Quick Stats */}
+                <div className="lg:col-span-6">
+                  <h3 className="text-lg font-semibold text-slate-900 mb-6">
+                    Quick Stats
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center p-6 bg-slate-50 rounded-xl border border-slate-100">
+                      <div className="text-3xl font-bold text-slate-900 mb-2">
+                        {callHistory.length}
+                      </div>
+                      <div className="text-sm text-slate-600 font-medium">
+                        Total Calls
+                      </div>
+                    </div>
+                    <div className="text-center p-6 bg-slate-50 rounded-xl border border-slate-100">
+                      <div className="text-3xl font-bold text-slate-900 mb-2">
+                        {callHistory.length > 0
+                          ? Math.round(
+                              callHistory.reduce(
+                                (sum, call) => sum + call.duration,
+                                0
+                              ) /
+                                callHistory.length /
+                                60
+                            )
+                          : 0}
+                        m
+                      </div>
+                      <div className="text-sm text-slate-600 font-medium">
+                        Avg Duration
+                      </div>
+                    </div>
+                    <div className="text-center p-6 bg-slate-50 rounded-xl border border-slate-100">
+                      <div className="text-3xl font-bold text-slate-900 mb-2">
+                        {
+                          callHistory.filter(
+                            (call) => call.outcome === "successful"
+                          ).length
+                        }
+                      </div>
+                      <div className="text-sm text-slate-600 font-medium">
+                        Successful
+                      </div>
+                    </div>
+                    <div className="text-center p-6 bg-slate-50 rounded-xl border border-slate-100">
+                      <div className="text-3xl font-bold text-slate-900 mb-2">
+                        {liveSuggestions.length}
+                      </div>
+                      <div className="text-sm text-slate-600 font-medium">
+                        Live Suggestions
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Connection Status */}
+                <div className="lg:col-span-3">
+                  <h3 className="text-lg font-semibold text-slate-900 mb-6">
+                    Connection Status
+                  </h3>
+                  <div className="space-y-4">
+                    <div className="flex flex-col space-y-2">
+                      <span className="text-sm text-slate-500 font-medium">
+                        WebSocket
+                      </span>
                       <div
-                        className={`w-2 h-2 rounded-full mr-2 ${
-                          isConnected ? "bg-green-500" : "bg-red-500"
+                        className={`flex items-center px-4 py-2 rounded-lg w-fit ${
+                          isConnected
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-800"
                         }`}
-                      ></div>
-                      {isConnected ? "Connected" : "Disconnected"}
+                      >
+                        <div
+                          className={`w-2 h-2 rounded-full mr-2 ${
+                            isConnected ? "bg-green-500" : "bg-red-500"
+                          }`}
+                        ></div>
+                        {isConnected ? "Connected" : "Disconnected"}
+                      </div>
                     </div>
+                    {currentCallSid && (
+                      <div className="flex flex-col space-y-2">
+                        <span className="text-sm text-slate-500 font-medium">
+                          Current Call
+                        </span>
+                        <span className="text-xs font-mono text-slate-700 bg-slate-100 px-3 py-2 rounded-lg w-fit">
+                          {currentCallSid.substring(0, 8)}...
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  {currentCallSid && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-600">Current Call</span>
-                      <span className="text-xs font-mono text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                        {currentCallSid.substring(0, 8)}...
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
-            </div>
 
-            {client.notes && (
-              <div className="mt-6 pt-6 border-t border-slate-200">
-                <h4 className="text-sm font-medium text-slate-700 mb-2">
-                  Notes
-                </h4>
-                <p className="text-sm text-slate-600">{client.notes}</p>
-              </div>
-            )}
+              {client.notes && (
+                <div className="mt-8 pt-8 border-t border-slate-200">
+                  <h4 className="text-sm font-semibold text-slate-700 mb-3">
+                    Notes
+                  </h4>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    {client.notes}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Tab Navigation */}
@@ -1388,181 +1441,257 @@ export default function ClientDetailPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-6">
-              {/* Live AI Suggestions */}
-              <LiveAISuggestions 
-                agentId={agentId}
-                callSid={currentCallSid || undefined}
-                className="w-full"
-                showHeader={true}
-                maxSuggestions={3}
-              />
+            <div className="space-y-8">
+              {/* Enhanced Analysis Section */}
+              {currentCall?.enhancedAnalysis && (
+                <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8">
+                  <h4 className="text-xl font-semibold text-slate-900 mb-6 flex items-center">
+                    <Activity className="w-6 h-6 mr-3 text-blue-600" />
+                    Enhanced Call Analysis
+                  </h4>
 
-                {/* Enhanced Analysis Section */}
-                {currentCall?.enhancedAnalysis && (
-                  <div className="mt-6 pt-6 border-t border-slate-200">
-                    <h4 className="text-lg font-semibold text-slate-900 mb-4 flex items-center">
-                      <Activity className="w-5 h-5 mr-2 text-blue-600" />
-                      Enhanced Call Analysis
-                    </h4>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Mood Analysis */}
-                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100 p-4">
-                        <div className="flex items-center space-x-2 mb-3">
-                          <div className="p-1.5 bg-blue-100 rounded-lg">
-                            <Target className="w-4 h-4 text-blue-600" />
-                          </div>
-                          <h5 className="text-sm font-semibold text-blue-900">Call Mood</h5>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Mood Analysis */}
+                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100 p-6">
+                      <div className="flex items-center space-x-3 mb-4">
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                          <Target className="w-5 h-5 text-blue-600" />
                         </div>
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-slate-700">Mood:</span>
-                            <span className={`text-sm font-semibold px-2 py-1 rounded-full ${
-                              currentCall.enhancedAnalysis.moodAnalysis.mood === 'positive' ? 'bg-green-100 text-green-700' :
-                              currentCall.enhancedAnalysis.moodAnalysis.mood === 'negative' ? 'bg-red-100 text-red-700' :
-                              'bg-yellow-100 text-yellow-700'
-                            }`}>
-                              {currentCall.enhancedAnalysis.moodAnalysis.mood}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-slate-700">Confidence:</span>
-                            <span className="text-sm font-semibold text-slate-900">
-                              {Math.round(currentCall.enhancedAnalysis.moodAnalysis.confidence * 100)}%
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-600 mt-2">
-                            {currentCall.enhancedAnalysis.moodAnalysis.reasoning}
-                          </p>
-                        </div>
+                        <h5 className="text-base font-semibold text-blue-900">
+                          Call Mood
+                        </h5>
                       </div>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-700 font-medium">
+                            Mood:
+                          </span>
+                          <span
+                            className={`text-sm font-semibold px-3 py-1 rounded-full ${
+                              currentCall.enhancedAnalysis.moodAnalysis.mood ===
+                              "positive"
+                                ? "bg-green-100 text-green-700"
+                                : currentCall.enhancedAnalysis.moodAnalysis
+                                    .mood === "negative"
+                                ? "bg-red-100 text-red-700"
+                                : "bg-yellow-100 text-yellow-700"
+                            }`}
+                          >
+                            {currentCall.enhancedAnalysis.moodAnalysis.mood}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-slate-700 font-medium">
+                            Confidence:
+                          </span>
+                          <span className="text-sm font-semibold text-slate-900">
+                            {Math.round(
+                              currentCall.enhancedAnalysis.moodAnalysis
+                                .confidence * 100
+                            )}
+                            %
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-600 mt-3 leading-relaxed">
+                          {currentCall.enhancedAnalysis.moodAnalysis.reasoning}
+                        </p>
+                      </div>
+                    </div>
 
-                      {/* Competitor Analysis */}
-                      {currentCall.enhancedAnalysis.competitorAnalysis.competitors.length > 0 && (
-                        <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-xl border border-orange-100 p-4">
-                          <div className="flex items-center space-x-2 mb-3">
-                            <div className="p-1.5 bg-orange-100 rounded-lg">
-                              <Users className="w-4 h-4 text-orange-600" />
-                            </div>
-                            <h5 className="text-sm font-semibold text-orange-900">Competitors Mentioned</h5>
+                    {/* Competitor Analysis */}
+                    {currentCall.enhancedAnalysis.competitorAnalysis.competitors
+                      .length > 0 && (
+                      <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-xl border border-orange-100 p-6">
+                        <div className="flex items-center space-x-3 mb-4">
+                          <div className="p-2 bg-orange-100 rounded-lg">
+                            <Users className="w-5 h-5 text-orange-600" />
                           </div>
-                          <div className="space-y-2">
-                            {currentCall.enhancedAnalysis.competitorAnalysis.competitors.map((competitor, index) => (
-                              <div key={index} className="bg-white rounded-lg p-2 border border-orange-200">
-                                <div className="font-semibold text-sm text-slate-900">{competitor.name}</div>
-                                <p className="text-xs text-slate-600 mt-1">{competitor.context}</p>
+                          <h5 className="text-base font-semibold text-orange-900">
+                            Competitors Mentioned
+                          </h5>
+                        </div>
+                        <div className="space-y-3">
+                          {currentCall.enhancedAnalysis.competitorAnalysis.competitors.map(
+                            (competitor, index) => (
+                              <div
+                                key={index}
+                                className="bg-white rounded-lg p-4 border border-orange-200"
+                              >
+                                <div className="font-semibold text-sm text-slate-900 mb-2">
+                                  {competitor.name}
+                                </div>
+                                <p className="text-xs text-slate-600 mb-2 leading-relaxed">
+                                  {competitor.context}
+                                </p>
                                 {competitor.highlights.length > 0 && (
-                                  <div className="mt-1">
-                                    <span className="text-xs text-slate-500">Highlights:</span>
+                                  <div className="mt-2">
+                                    <span className="text-xs text-slate-500 font-medium">
+                                      Highlights:
+                                    </span>
                                     <ul className="text-xs text-slate-600 mt-1 space-y-1">
-                                      {competitor.highlights.map((highlight, idx) => (
-                                        <li key={idx} className="flex items-start space-x-1">
-                                          <span className="text-orange-500 mt-0.5">•</span>
-                                          <span>{highlight}</span>
-                                        </li>
-                                      ))}
+                                      {competitor.highlights.map(
+                                        (highlight, idx) => (
+                                          <li
+                                            key={idx}
+                                            className="flex items-start space-x-2"
+                                          >
+                                            <span className="text-orange-500 mt-0.5">
+                                              •
+                                            </span>
+                                            <span>{highlight}</span>
+                                          </li>
+                                        )
+                                      )}
                                     </ul>
                                   </div>
                                 )}
                               </div>
-                            ))}
-                          </div>
+                            )
+                          )}
                         </div>
-                      )}
+                      </div>
+                    )}
 
-                      {/* Business Details */}
-                      {(currentCall.enhancedAnalysis.businessDetails.cuisineTypes.length > 0 || 
-                        currentCall.enhancedAnalysis.businessDetails.address || 
-                        currentCall.enhancedAnalysis.businessDetails.businessType) && (
-                        <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-100 p-4">
-                          <div className="flex items-center space-x-2 mb-3">
-                            <div className="p-1.5 bg-green-100 rounded-lg">
-                              <Globe className="w-4 h-4 text-green-600" />
-                            </div>
-                            <h5 className="text-sm font-semibold text-green-900">Business Details</h5>
+                    {/* Business Details */}
+                    {(currentCall.enhancedAnalysis.businessDetails.cuisineTypes
+                      .length > 0 ||
+                      currentCall.enhancedAnalysis.businessDetails.address ||
+                      currentCall.enhancedAnalysis.businessDetails
+                        .businessType) && (
+                      <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl border border-green-100 p-6">
+                        <div className="flex items-center space-x-3 mb-4">
+                          <div className="p-2 bg-green-100 rounded-lg">
+                            <Globe className="w-5 h-5 text-green-600" />
                           </div>
-                          <div className="space-y-2">
-                            {currentCall.enhancedAnalysis.businessDetails.cuisineTypes.length > 0 && (
-                              <div>
-                                <span className="text-xs text-slate-500">Cuisine Types:</span>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {currentCall.enhancedAnalysis.businessDetails.cuisineTypes.map((cuisine, index) => (
-                                    <span key={index} className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
-                                      {cuisine}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            {currentCall.enhancedAnalysis.businessDetails.address && (
-                              <div>
-                                <span className="text-xs text-slate-500">Address:</span>
-                                <p className="text-sm text-slate-900">{currentCall.enhancedAnalysis.businessDetails.address}</p>
-                              </div>
-                            )}
-                            {currentCall.enhancedAnalysis.businessDetails.businessType && (
-                              <div>
-                                <span className="text-xs text-slate-500">Business Type:</span>
-                                <p className="text-sm text-slate-900">{currentCall.enhancedAnalysis.businessDetails.businessType}</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Key Information */}
-                      <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-100 p-4">
-                        <div className="flex items-center space-x-2 mb-3">
-                          <div className="p-1.5 bg-purple-100 rounded-lg">
-                            <Lightbulb className="w-4 h-4 text-purple-600" />
-                          </div>
-                          <h5 className="text-sm font-semibold text-purple-900">Key Information</h5>
+                          <h5 className="text-base font-semibold text-green-900">
+                            Business Details
+                          </h5>
                         </div>
                         <div className="space-y-3">
-                          {currentCall.enhancedAnalysis.keyInformation.summary.length > 0 && (
+                          {currentCall.enhancedAnalysis.businessDetails
+                            .cuisineTypes.length > 0 && (
                             <div>
-                              <span className="text-xs text-slate-500 font-semibold">Summary:</span>
-                              <ul className="text-xs text-slate-700 mt-1 space-y-1">
-                                {currentCall.enhancedAnalysis.keyInformation.summary.map((item, index) => (
-                                  <li key={index} className="flex items-start space-x-2">
-                                    <span className="text-purple-500 mt-0.5">•</span>
-                                    <span>{item}</span>
-                                  </li>
-                                ))}
-                              </ul>
+                              <span className="text-xs text-slate-500 font-medium">
+                                Cuisine Types:
+                              </span>
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {currentCall.enhancedAnalysis.businessDetails.cuisineTypes.map(
+                                  (cuisine, index) => (
+                                    <span
+                                      key={index}
+                                      className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full"
+                                    >
+                                      {cuisine}
+                                    </span>
+                                  )
+                                )}
+                              </div>
                             </div>
                           )}
-                          {currentCall.enhancedAnalysis.keyInformation.actionItems.length > 0 && (
+                          {currentCall.enhancedAnalysis.businessDetails
+                            .address && (
                             <div>
-                              <span className="text-xs text-slate-500 font-semibold">Action Items:</span>
-                              <ul className="text-xs text-slate-700 mt-1 space-y-1">
-                                {currentCall.enhancedAnalysis.keyInformation.actionItems.map((item, index) => (
-                                  <li key={index} className="flex items-start space-x-2">
-                                    <span className="text-pink-500 mt-0.5">→</span>
-                                    <span>{item}</span>
-                                  </li>
-                                ))}
-                              </ul>
+                              <span className="text-xs text-slate-500 font-medium">
+                                Address:
+                              </span>
+                              <p className="text-sm text-slate-900 mt-1">
+                                {
+                                  currentCall.enhancedAnalysis.businessDetails
+                                    .address
+                                }
+                              </p>
+                            </div>
+                          )}
+                          {currentCall.enhancedAnalysis.businessDetails
+                            .businessType && (
+                            <div>
+                              <span className="text-xs text-slate-500 font-medium">
+                                Business Type:
+                              </span>
+                              <p className="text-sm text-slate-900 mt-1">
+                                {
+                                  currentCall.enhancedAnalysis.businessDetails
+                                    .businessType
+                                }
+                              </p>
                             </div>
                           )}
                         </div>
                       </div>
+                    )}
+
+                    {/* Key Information */}
+                    <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-100 p-6">
+                      <div className="flex items-center space-x-3 mb-4">
+                        <div className="p-2 bg-purple-100 rounded-lg">
+                          <Lightbulb className="w-5 h-5 text-purple-600" />
+                        </div>
+                        <h5 className="text-base font-semibold text-purple-900">
+                          Key Information
+                        </h5>
+                      </div>
+                      <div className="space-y-4">
+                        {currentCall.enhancedAnalysis.keyInformation.summary
+                          .length > 0 && (
+                          <div>
+                            <span className="text-xs text-slate-500 font-semibold">
+                              Summary:
+                            </span>
+                            <ul className="text-xs text-slate-700 mt-2 space-y-1">
+                              {currentCall.enhancedAnalysis.keyInformation.summary.map(
+                                (item, index) => (
+                                  <li
+                                    key={index}
+                                    className="flex items-start space-x-2"
+                                  >
+                                    <span className="text-purple-500 mt-0.5">
+                                      •
+                                    </span>
+                                    <span>{item}</span>
+                                  </li>
+                                )
+                              )}
+                            </ul>
+                          </div>
+                        )}
+                        {currentCall.enhancedAnalysis.keyInformation.actionItems
+                          .length > 0 && (
+                          <div>
+                            <span className="text-xs text-slate-500 font-semibold">
+                              Action Items:
+                            </span>
+                            <ul className="text-xs text-slate-700 mt-2 space-y-1">
+                              {currentCall.enhancedAnalysis.keyInformation.actionItems.map(
+                                (item, index) => (
+                                  <li
+                                    key={index}
+                                    className="flex items-start space-x-2"
+                                  >
+                                    <span className="text-pink-500 mt-0.5">
+                                      →
+                                    </span>
+                                    <span>{item}</span>
+                                  </li>
+                                )
+                              )}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
 
               {/* Call History */}
-              <div className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-blue-100 rounded-lg">
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200">
+                <div className="p-8 border-b border-slate-200">
+                  <div className="flex items-center space-x-4">
+                    <div className="p-3 bg-blue-100 rounded-lg">
                       <MessageSquare className="w-6 h-6 text-blue-600" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-slate-900">
+                      <h3 className="text-xl font-semibold text-slate-900">
                         Call History
                       </h3>
                       <p className="text-sm text-slate-500">
@@ -1572,701 +1701,950 @@ export default function ClientDetailPage() {
                   </div>
                 </div>
 
-                {callHistory.length === 0 ? (
-                  <div className="text-center py-12">
-                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <MessageSquare className="w-8 h-8 text-slate-400" />
+                <div className="p-8">
+                  {callHistory.length === 0 ? (
+                    <div className="text-center py-16">
+                      <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <MessageSquare className="w-10 h-10 text-slate-400" />
+                      </div>
+                      <h4 className="text-xl font-medium text-slate-900 mb-3">
+                        No Call History
+                      </h4>
+                      <p className="text-slate-500">
+                        Call records will appear here after conversations
+                      </p>
                     </div>
-                    <h4 className="text-lg font-medium text-slate-900 mb-2">
-                      No Call History
-                    </h4>
-                    <p className="text-slate-500">
-                      Call records will appear here after conversations
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    {callHistory.map((call) => (
-                      <div
-                        key={call._id}
-                        className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl border border-slate-200 hover:shadow-lg transition-all duration-200 overflow-hidden"
-                      >
-                        {/* Call Header */}
-                        <div className="p-5 border-b border-slate-200 bg-white/50">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-4">
-                              <div className="flex items-center space-x-2">
-                                <div
-                                  className={`w-3 h-3 rounded-full ${
-                                    call.direction === "inbound"
-                                      ? "bg-green-400"
-                                      : "bg-blue-400"
-                                  }`}
-                                ></div>
-                                <span className="text-sm font-semibold text-slate-700 capitalize">
-                                  {call.direction} Call
-                                </span>
-                              </div>
-                              <div className="text-sm text-slate-600">
-                                {new Date(call.timestamp).toLocaleDateString(
-                                  "en-US",
-                                  {
-                                    month: "short",
-                                    day: "numeric",
-                                    year: "numeric",
-                                  }
-                                )}
-                              </div>
-                              {call.callStartTime && (
-                                <div className="text-sm text-slate-600">
-                                  Start: {new Date(call.callStartTime).toLocaleTimeString(
-                                    "en-US",
-                                    {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    }
-                                  )}
-                                </div>
-                              )}
-                              {call.callEndTime && (
-                                <div className="text-sm text-slate-600">
-                                  End: {new Date(call.callEndTime).toLocaleTimeString(
-                                    "en-US",
-                                    {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    }
-                                  )}
-                                </div>
-                              )}
-                              <div className="text-sm text-slate-600">
-                                {formatDuration(call.duration || 0)}
-                              </div>
-                            </div>
-
-                            {call.moodAnalysis && (
-                              <div className="flex items-center space-x-3">
-                                <div className="text-right">
+                  ) : (
+                    <div className="space-y-8">
+                      {callHistory.map((call) => (
+                        <div
+                          key={call._id}
+                          className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl border border-slate-200 hover:shadow-lg transition-all duration-200 overflow-hidden"
+                        >
+                          {/* Call Header */}
+                          <div className="p-6 border-b border-slate-200 bg-white/50">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-6">
+                                <div className="flex items-center space-x-3">
                                   <div
-                                    className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold ${
-                                      call.moodAnalysis.mood === "positive"
-                                        ? "bg-green-100 text-green-700"
-                                        : call.moodAnalysis.mood === "negative"
-                                        ? "bg-red-100 text-red-700"
-                                        : "bg-yellow-100 text-yellow-700"
+                                    className={`w-3 h-3 rounded-full ${
+                                      call.direction === "inbound"
+                                        ? "bg-green-400"
+                                        : "bg-blue-400"
                                     }`}
-                                  >
+                                  ></div>
+                                  <span className="text-sm font-semibold text-slate-700 capitalize">
+                                    {call.direction} Call
+                                  </span>
+                                </div>
+                                <div className="text-sm text-slate-600">
+                                  {new Date(call.timestamp).toLocaleDateString(
+                                    "en-US",
+                                    {
+                                      month: "short",
+                                      day: "numeric",
+                                      year: "numeric",
+                                    }
+                                  )}
+                                </div>
+                                {call.callStartTime && (
+                                  <div className="text-sm text-slate-600">
+                                    Start:{" "}
+                                    {new Date(
+                                      call.callStartTime
+                                    ).toLocaleTimeString("en-US", {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </div>
+                                )}
+                                {call.callEndTime && (
+                                  <div className="text-sm text-slate-600">
+                                    End:{" "}
+                                    {new Date(
+                                      call.callEndTime
+                                    ).toLocaleTimeString("en-US", {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </div>
+                                )}
+                                <div className="text-sm text-slate-600">
+                                  {formatDuration(call.duration || 0)}
+                                </div>
+                              </div>
+
+                              {call.moodAnalysis && (
+                                <div className="flex items-center space-x-3">
+                                  <div className="text-right">
                                     <div
-                                      className={`w-2 h-2 rounded-full mr-2 ${
+                                      className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold ${
                                         call.moodAnalysis.mood === "positive"
-                                          ? "bg-green-500"
+                                          ? "bg-green-100 text-green-700"
                                           : call.moodAnalysis.mood ===
                                             "negative"
-                                          ? "bg-red-500"
-                                          : "bg-yellow-500"
+                                          ? "bg-red-100 text-red-700"
+                                          : "bg-yellow-100 text-yellow-700"
                                       }`}
-                                    ></div>
-                                    {call.moodAnalysis.mood}
-                                  </div>
-                                  <div className="text-xs text-slate-500 mt-1">
-                                    Sentiment:{" "}
-                                    {Math.round(
-                                      (call.moodAnalysis.sentiment || 0) * 100
-                                    )}
-                                    %
+                                    >
+                                      <div
+                                        className={`w-2 h-2 rounded-full mr-2 ${
+                                          call.moodAnalysis.mood === "positive"
+                                            ? "bg-green-500"
+                                            : call.moodAnalysis.mood ===
+                                              "negative"
+                                            ? "bg-red-500"
+                                            : "bg-yellow-500"
+                                        }`}
+                                      ></div>
+                                      {call.moodAnalysis.mood}
+                                    </div>
+                                    <div className="text-xs text-slate-500 mt-1">
+                                      Sentiment:{" "}
+                                      {Math.round(
+                                        (call.moodAnalysis.sentiment || 0) * 100
+                                      )}
+                                      %
+                                    </div>
                                   </div>
                                 </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Call Content */}
+                          <div className="p-6 space-y-6">
+                            {/* Transcript Section */}
+                            {call.transcript && (
+                              <div className="bg-white rounded-lg border border-slate-200 p-5">
+                                <div className="flex items-center justify-between mb-4">
+                                  <h5 className="text-sm font-semibold text-slate-700 flex items-center space-x-2">
+                                    <MessageSquare className="w-4 h-4" />
+                                    <span>Conversation</span>
+                                  </h5>
+                                  <button
+                                    onClick={() =>
+                                      openTranscriptModal(call.transcript)
+                                    }
+                                    className="flex items-center space-x-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                    <span>View Full</span>
+                                  </button>
+                                </div>
+                                <p className="text-sm text-slate-600 line-clamp-2 leading-relaxed">
+                                  {call.transcript.length > 150
+                                    ? `${call.transcript.substring(0, 150)}...`
+                                    : call.transcript}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* AI Suggestions Section */}
+                            {call.aiSuggestions &&
+                              call.aiSuggestions.length > 0 && (
+                                <div className="bg-white rounded-lg border border-slate-200 p-5">
+                                  <div className="flex items-center justify-between mb-4">
+                                    <h5 className="text-sm font-semibold text-slate-700 flex items-center space-x-2">
+                                      <Lightbulb className="w-4 h-4" />
+                                      <span>
+                                        AI Suggestions (
+                                        {call.aiSuggestions.length})
+                                      </span>
+                                    </h5>
+                                    <button
+                                      onClick={() =>
+                                        openSuggestionsModal(call.aiSuggestions)
+                                      }
+                                      className="flex items-center space-x-1 px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm font-medium"
+                                    >
+                                      <Lightbulb className="w-4 h-4" />
+                                      <span>View All</span>
+                                    </button>
+                                  </div>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {call.aiSuggestions
+                                      .slice(0, 2)
+                                      .map((suggestion, index) => (
+                                        <div
+                                          key={index}
+                                          className="bg-gradient-to-br from-purple-50 to-indigo-50 p-4 rounded-lg border border-purple-100 hover:shadow-sm transition-shadow"
+                                        >
+                                          <div className="flex items-start justify-between mb-3">
+                                            <div className="flex items-center space-x-2">
+                                              <div className="p-1 bg-purple-100 rounded">
+                                                {getSuggestionIcon(
+                                                  suggestion.type
+                                                )}
+                                              </div>
+                                              <span className="text-xs font-semibold text-purple-700 bg-purple-100 px-2 py-1 rounded-full">
+                                                {suggestion.type
+                                                  .replace("_", " ")
+                                                  .toUpperCase()}
+                                              </span>
+                                            </div>
+                                            <div className="flex items-center space-x-1">
+                                              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                                              <span className="text-xs text-slate-500">
+                                                {(
+                                                  suggestion.confidence * 100
+                                                ).toFixed(0)}
+                                                %
+                                              </span>
+                                            </div>
+                                          </div>
+                                          <p className="text-sm text-slate-800 mb-3 line-clamp-2 leading-relaxed">
+                                            {suggestion.text}
+                                          </p>
+                                          <div className="flex items-center justify-between text-xs">
+                                            <span className="text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                                              {suggestion.deliver_as}
+                                            </span>
+                                            <span className="text-slate-400 font-mono">
+                                              {suggestion.offer_id}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    {call.aiSuggestions.length > 2 && (
+                                      <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-lg p-4 flex items-center justify-center">
+                                        <span className="text-sm text-slate-500 font-medium">
+                                          +{call.aiSuggestions.length - 2} more
+                                          suggestions
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                            {/* Call Analysis Summary */}
+                            {call.callAnalysis && call.callAnalysis.summary && (
+                              <div className="bg-white rounded-xl border border-slate-200 p-6 mb-4">
+                                <h5 className="text-base font-semibold text-slate-800 flex items-center gap-2 mb-5">
+                                  <Activity className="w-5 h-5" />
+                                  <span>Call Analysis</span>
+                                </h5>
+
+                                {/* Summary */}
+                                <div className="mb-6">
+                                  <p className="text-base text-slate-900 font-semibold mb-2">
+                                    Summary
+                                  </p>
+                                  <div className="bg-slate-50 p-4 rounded-lg text-slate-700 text-sm leading-relaxed">
+                                    {call.callAnalysis.summary}
+                                  </div>
+                                </div>
+
+                                {/* Key Metrics */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 mb-6">
+                                  {/* Client Engagement */}
+                                  <div className="flex flex-col items-center text-center">
+                                    <p className="text-xs text-slate-500 mb-1">
+                                      Client Engagement
+                                    </p>
+                                    <span className="text-2xl font-bold text-blue-600 mb-1">
+                                      {Math.round(
+                                        (call.callAnalysis.customerEngagement ||
+                                          0) * 100
+                                      )}
+                                      %
+                                    </span>
+                                    <div className="w-full bg-slate-200 rounded-full h-2 mt-2">
+                                      <div
+                                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                        style={{
+                                          width: `${Math.min(
+                                            (call.callAnalysis
+                                              .customerEngagement || 0) * 100,
+                                            100
+                                          )}%`,
+                                        }}
+                                      ></div>
+                                    </div>
+                                  </div>
+                                  {/* Agent Performance */}
+                                  <div className="flex flex-col items-center text-center">
+                                    <p className="text-xs text-slate-500 mb-1">
+                                      Agent Performance
+                                    </p>
+                                    <span className="text-2xl font-bold text-green-600 mb-1">
+                                      {Math.round(
+                                        (call.callAnalysis.agentPerformance ||
+                                          0) * 100
+                                      )}
+                                      %
+                                    </span>
+                                    <div className="w-full bg-slate-200 rounded-full h-2 mt-2">
+                                      <div
+                                        className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                                        style={{
+                                          width: `${Math.min(
+                                            (call.callAnalysis
+                                              .agentPerformance || 0) * 100,
+                                            100
+                                          )}%`,
+                                        }}
+                                      ></div>
+                                    </div>
+                                  </div>
+                                  {/* Response Time */}
+                                  <div className="flex flex-col items-center text-center">
+                                    <p className="text-xs text-slate-500 mb-1">
+                                      Avg Response Time
+                                    </p>
+                                    <span className="text-2xl font-bold text-yellow-600 mb-1">
+                                      {call.callAnalysis.metrics
+                                        ?.averageResponseTime
+                                        ? `${Math.round(
+                                            call.callAnalysis.metrics
+                                              .averageResponseTime
+                                          )}s`
+                                        : "N/A"}
+                                    </span>
+                                    <div className="text-xs text-slate-500 mt-1">
+                                      {call.callAnalysis.metrics
+                                        ?.averageResponseTime
+                                        ? call.callAnalysis.metrics
+                                            .averageResponseTime < 3
+                                          ? "Excellent"
+                                          : call.callAnalysis.metrics
+                                              .averageResponseTime < 5
+                                          ? "Good"
+                                          : "Needs Improvement"
+                                        : ""}
+                                    </div>
+                                  </div>
+                                  {/* Questions Asked */}
+                                  <div className="flex flex-col items-center text-center">
+                                    <p className="text-xs text-slate-500 mb-1">
+                                      Questions Asked
+                                    </p>
+                                    <span className="text-2xl font-bold text-indigo-600 mb-1">
+                                      {call.callAnalysis.metrics
+                                        ?.questionCount || 0}
+                                    </span>
+                                    <div className="text-xs text-slate-500 mt-1">
+                                      {call.callAnalysis.metrics?.questionCount
+                                        ? call.callAnalysis.metrics
+                                            .questionCount > 5
+                                          ? "Engaging"
+                                          : call.callAnalysis.metrics
+                                              .questionCount > 2
+                                          ? "Good"
+                                          : "Could ask more"
+                                        : ""}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Key Topics */}
+                                {call.callAnalysis.keyTopics &&
+                                  call.callAnalysis.keyTopics.length > 0 && (
+                                    <div className="mb-6">
+                                      <p className="text-base text-slate-900 font-semibold mb-2">
+                                        Key Topics
+                                      </p>
+                                      <div className="flex flex-wrap gap-2">
+                                        {call.callAnalysis.keyTopics.map(
+                                          (topic, index) => (
+                                            <span
+                                              key={index}
+                                              className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium"
+                                            >
+                                              {topic}
+                                            </span>
+                                          )
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                {/* Insights */}
+                                {call.callAnalysis.insights && (
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {call.callAnalysis.insights.strengths &&
+                                      call.callAnalysis.insights.strengths
+                                        .length > 0 && (
+                                        <div>
+                                          <p className="text-xs font-semibold text-green-700 mb-2">
+                                            Strengths
+                                          </p>
+                                          <ul className="text-sm text-slate-700 space-y-2 list-disc list-inside pl-2">
+                                            {call.callAnalysis.insights.strengths
+                                              .slice(0, 2)
+                                              .map((strength, index) => (
+                                                <li key={index}>{strength}</li>
+                                              ))}
+                                          </ul>
+                                        </div>
+                                      )}
+
+                                    {call.callAnalysis.insights.improvements &&
+                                      call.callAnalysis.insights.improvements
+                                        .length > 0 && (
+                                        <div>
+                                          <p className="text-xs font-semibold text-yellow-700 mb-2">
+                                            Improvements
+                                          </p>
+                                          <ul className="text-sm text-slate-700 space-y-2 list-disc list-inside pl-2">
+                                            {call.callAnalysis.insights.improvements
+                                              .slice(0, 2)
+                                              .map((improvement, index) => (
+                                                <li key={index}>
+                                                  {improvement}
+                                                </li>
+                                              ))}
+                                          </ul>
+                                        </div>
+                                      )}
+                                  </div>
+                                )}
+
+                                {/* AI Agent Feedback Section - Compact */}
+                                {call.agentFeedback && (
+                                  <div className="mt-4">
+                                    <button
+                                      onClick={() =>
+                                        toggleSection(call._id, "agentFeedback")
+                                      }
+                                      className="flex items-center justify-between w-full p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 hover:from-blue-100 hover:to-indigo-100 transition-all duration-200"
+                                    >
+                                      <div className="flex items-center space-x-2">
+                                        <div className="p-1.5 bg-blue-100 rounded-lg">
+                                          <Target className="w-4 h-4 text-blue-600" />
+                                        </div>
+                                        <div className="text-left">
+                                          <h6 className="text-sm font-semibold text-blue-900">
+                                            AI Agent Feedback & Next Steps
+                                          </h6>
+                                          <p className="text-xs text-blue-700">
+                                            Performance:{" "}
+                                            {call.agentFeedback
+                                              .performanceScore || "N/A"}
+                                            /10
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <div className="text-xs text-blue-600 font-medium">
+                                          {isSectionExpanded(
+                                            call._id,
+                                            "agentFeedback"
+                                          )
+                                            ? "Hide"
+                                            : "View"}
+                                        </div>
+                                        <div
+                                          className={`transform transition-transform duration-200 ${
+                                            isSectionExpanded(
+                                              call._id,
+                                              "agentFeedback"
+                                            )
+                                              ? "rotate-180"
+                                              : ""
+                                          }`}
+                                        >
+                                          <svg
+                                            className="w-4 h-4 text-blue-600"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                          >
+                                            <path
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                              strokeWidth={2}
+                                              d="M19 9l-7 7-7-7"
+                                            />
+                                          </svg>
+                                        </div>
+                                      </div>
+                                    </button>
+
+                                    {isSectionExpanded(
+                                      call._id,
+                                      "agentFeedback"
+                                    ) && (
+                                      <div className="mt-4 p-4 bg-white rounded-lg border border-blue-200">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          {/* Performance Score */}
+                                          <div className="bg-white rounded-lg p-3 border border-blue-100">
+                                            <div className="flex items-center justify-between mb-2">
+                                              <span className="text-xs font-medium text-slate-700">
+                                                Overall Performance
+                                              </span>
+                                              <span className="text-sm font-bold text-blue-600">
+                                                {call.agentFeedback
+                                                  .performanceScore || "N/A"}
+                                                /10
+                                              </span>
+                                            </div>
+                                            <div className="w-full bg-slate-200 rounded-full h-2">
+                                              <div
+                                                className={`h-2 rounded-full transition-all duration-300 ${
+                                                  (call.agentFeedback
+                                                    .performanceScore || 0) >= 8
+                                                    ? "bg-green-500"
+                                                    : (call.agentFeedback
+                                                        .performanceScore ||
+                                                        0) >= 6
+                                                    ? "bg-yellow-500"
+                                                    : "bg-red-500"
+                                                }`}
+                                                style={{
+                                                  width: `${
+                                                    ((call.agentFeedback
+                                                      .performanceScore || 0) /
+                                                      10) *
+                                                    100
+                                                  }%`,
+                                                }}
+                                              ></div>
+                                            </div>
+                                            <p className="text-xs text-slate-600 mt-1">
+                                              {call.agentFeedback
+                                                .overallFeedback ||
+                                                "No overall feedback available"}
+                                            </p>
+                                          </div>
+
+                                          {/* Conversation Quality */}
+                                          {call.agentFeedback
+                                            .conversationQuality && (
+                                            <div className="bg-white rounded-lg p-3 border border-blue-100">
+                                              <div className="flex items-center justify-between mb-2">
+                                                <span className="text-xs font-medium text-slate-700">
+                                                  Conversation Quality
+                                                </span>
+                                                <span className="text-sm font-bold text-blue-600">
+                                                  {call.agentFeedback
+                                                    .conversationQuality
+                                                    .rating || "N/A"}
+                                                  /10
+                                                </span>
+                                              </div>
+                                              <p className="text-xs text-slate-600">
+                                                {call.agentFeedback
+                                                  .conversationQuality
+                                                  .feedback ||
+                                                  "No feedback available"}
+                                              </p>
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        {/* Strengths and Improvements */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                          {/* Strengths */}
+                                          {call.agentFeedback.strengths &&
+                                            call.agentFeedback.strengths
+                                              .length > 0 && (
+                                              <div className="bg-white rounded-lg p-3 border border-green-100">
+                                                <div className="flex items-center space-x-2 mb-2">
+                                                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                                                  <span className="text-xs font-semibold text-green-700">
+                                                    Strengths
+                                                  </span>
+                                                </div>
+                                                <ul className="text-xs text-slate-700 space-y-1">
+                                                  {call.agentFeedback.strengths.map(
+                                                    (
+                                                      strength: string,
+                                                      index: number
+                                                    ) => (
+                                                      <li
+                                                        key={index}
+                                                        className="flex items-start space-x-2"
+                                                      >
+                                                        <span className="text-green-500 mt-1">
+                                                          •
+                                                        </span>
+                                                        <span>{strength}</span>
+                                                      </li>
+                                                    )
+                                                  )}
+                                                </ul>
+                                              </div>
+                                            )}
+
+                                          {/* Improvements */}
+                                          {call.agentFeedback.improvements &&
+                                            call.agentFeedback.improvements
+                                              .length > 0 && (
+                                              <div className="bg-white rounded-lg p-3 border border-yellow-100">
+                                                <div className="flex items-center space-x-2 mb-2">
+                                                  <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                                                  <span className="text-xs font-semibold text-yellow-700">
+                                                    Areas for Improvement
+                                                  </span>
+                                                </div>
+                                                <ul className="text-xs text-slate-700 space-y-1">
+                                                  {call.agentFeedback.improvements.map(
+                                                    (
+                                                      improvement: string,
+                                                      index: number
+                                                    ) => (
+                                                      <li
+                                                        key={index}
+                                                        className="flex items-start space-x-2"
+                                                      >
+                                                        <span className="text-yellow-500 mt-1">
+                                                          •
+                                                        </span>
+                                                        <span>
+                                                          {improvement}
+                                                        </span>
+                                                      </li>
+                                                    )
+                                                  )}
+                                                </ul>
+                                              </div>
+                                            )}
+                                        </div>
+
+                                        {/* Sales Techniques & Customer Handling */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                          {/* Sales Techniques */}
+                                          {call.agentFeedback
+                                            .salesTechniques && (
+                                            <div className="bg-white rounded-lg p-3 border border-purple-100">
+                                              <div className="flex items-center justify-between mb-2">
+                                                <span className="text-xs font-semibold text-purple-700">
+                                                  Sales Techniques
+                                                </span>
+                                                <span className="text-xs font-bold text-purple-600">
+                                                  {call.agentFeedback
+                                                    .salesTechniques.rating ||
+                                                    "N/A"}
+                                                  /10
+                                                </span>
+                                              </div>
+                                              <p className="text-xs text-slate-600 mb-2">
+                                                {call.agentFeedback
+                                                  .salesTechniques.feedback ||
+                                                  "No feedback available"}
+                                              </p>
+                                              {call.agentFeedback
+                                                .salesTechniques.suggestions &&
+                                                call.agentFeedback
+                                                  .salesTechniques.suggestions
+                                                  .length > 0 && (
+                                                  <div>
+                                                    <span className="text-xs font-medium text-slate-700">
+                                                      Suggestions:
+                                                    </span>
+                                                    <ul className="text-xs text-slate-600 mt-1 space-y-1">
+                                                      {call.agentFeedback.salesTechniques.suggestions.map(
+                                                        (
+                                                          suggestion: string,
+                                                          index: number
+                                                        ) => (
+                                                          <li
+                                                            key={index}
+                                                            className="flex items-start space-x-2"
+                                                          >
+                                                            <span className="text-purple-500 mt-1">
+                                                              •
+                                                            </span>
+                                                            <span>
+                                                              {suggestion}
+                                                            </span>
+                                                          </li>
+                                                        )
+                                                      )}
+                                                    </ul>
+                                                  </div>
+                                                )}
+                                            </div>
+                                          )}
+
+                                          {/* Customer Handling */}
+                                          {call.agentFeedback
+                                            .customerHandling && (
+                                            <div className="bg-white rounded-lg p-3 border border-blue-100">
+                                              <div className="flex items-center justify-between mb-2">
+                                                <span className="text-xs font-semibold text-blue-700">
+                                                  Customer Handling
+                                                </span>
+                                                <span className="text-xs font-bold text-blue-600">
+                                                  {call.agentFeedback
+                                                    .customerHandling.rating ||
+                                                    "N/A"}
+                                                  /10
+                                                </span>
+                                              </div>
+                                              <p className="text-xs text-slate-600 mb-2">
+                                                {call.agentFeedback
+                                                  .customerHandling.feedback ||
+                                                  "No feedback available"}
+                                              </p>
+                                              {call.agentFeedback
+                                                .customerHandling.suggestions &&
+                                                call.agentFeedback
+                                                  .customerHandling.suggestions
+                                                  .length > 0 && (
+                                                  <div>
+                                                    <span className="text-xs font-medium text-slate-700">
+                                                      Suggestions:
+                                                    </span>
+                                                    <ul className="text-xs text-slate-600 mt-1 space-y-1">
+                                                      {call.agentFeedback.customerHandling.suggestions.map(
+                                                        (
+                                                          suggestion: string,
+                                                          index: number
+                                                        ) => (
+                                                          <li
+                                                            key={index}
+                                                            className="flex items-start space-x-2"
+                                                          >
+                                                            <span className="text-blue-500 mt-1">
+                                                              •
+                                                            </span>
+                                                            <span>
+                                                              {suggestion}
+                                                            </span>
+                                                          </li>
+                                                        )
+                                                      )}
+                                                    </ul>
+                                                  </div>
+                                                )}
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        {/* Next Steps */}
+                                        {call.agentFeedback.nextSteps &&
+                                          call.agentFeedback.nextSteps.length >
+                                            0 && (
+                                            <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                                              <div className="flex items-start space-x-2">
+                                                <Lightbulb className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                                                <div>
+                                                  <p className="text-xs font-medium text-slate-700 mb-1">
+                                                    Next Steps for Future Calls:
+                                                  </p>
+                                                  <ul className="text-xs text-slate-600 space-y-1">
+                                                    {call.agentFeedback.nextSteps.map(
+                                                      (
+                                                        step: string,
+                                                        index: number
+                                                      ) => (
+                                                        <li
+                                                          key={index}
+                                                          className="flex items-start space-x-2"
+                                                        >
+                                                          <span className="text-yellow-500 mt-1">
+                                                            •
+                                                          </span>
+                                                          <span>{step}</span>
+                                                        </li>
+                                                      )
+                                                    )}
+                                                  </ul>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Call Summary Section - Compact */}
+                                {call.callSummary && (
+                                  <div className="mt-4">
+                                    <button
+                                      onClick={() =>
+                                        toggleSection(call._id, "callSummary")
+                                      }
+                                      className="flex items-center justify-between w-full p-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg border border-indigo-200 hover:from-indigo-100 hover:to-purple-100 transition-all duration-200"
+                                    >
+                                      <div className="flex items-center space-x-2">
+                                        <div className="p-1.5 bg-indigo-100 rounded-lg">
+                                          <MessageSquare className="w-4 h-4 text-indigo-600" />
+                                        </div>
+                                        <div className="text-left">
+                                          <h6 className="text-sm font-semibold text-indigo-900">
+                                            Call Summary
+                                          </h6>
+                                          <p className="text-xs text-indigo-700">
+                                            {call.callSummary.overallAssessment?.substring(
+                                              0,
+                                              60
+                                            )}
+                                            ...
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <div className="text-xs text-indigo-600 font-medium">
+                                          {isSectionExpanded(
+                                            call._id,
+                                            "callSummary"
+                                          )
+                                            ? "Hide"
+                                            : "View"}
+                                        </div>
+                                        <div
+                                          className={`transform transition-transform duration-200 ${
+                                            isSectionExpanded(
+                                              call._id,
+                                              "callSummary"
+                                            )
+                                              ? "rotate-180"
+                                              : ""
+                                          }`}
+                                        >
+                                          <svg
+                                            className="w-4 h-4 text-indigo-600"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                          >
+                                            <path
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                              strokeWidth={2}
+                                              d="M19 9l-7 7-7-7"
+                                            />
+                                          </svg>
+                                        </div>
+                                      </div>
+                                    </button>
+
+                                    {isSectionExpanded(
+                                      call._id,
+                                      "callSummary"
+                                    ) && (
+                                      <div className="mt-4 p-4 bg-white rounded-lg border border-indigo-200">
+                                        <div className="space-y-4">
+                                          {/* Overall Assessment */}
+                                          <div className="bg-white rounded-lg p-3 border border-indigo-100">
+                                            <div className="flex items-start space-x-2">
+                                              <div className="w-2 h-2 bg-indigo-400 rounded-full mt-2"></div>
+                                              <div>
+                                                <p className="text-xs font-semibold text-indigo-700 mb-1">
+                                                  Overall Assessment
+                                                </p>
+                                                <p className="text-sm text-slate-700">
+                                                  {
+                                                    call.callSummary
+                                                      .overallAssessment
+                                                  }
+                                                </p>
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          {/* Customer Tone */}
+                                          <div className="bg-white rounded-lg p-3 border border-indigo-100">
+                                            <div className="flex items-start space-x-2">
+                                              <div className="w-2 h-2 bg-blue-400 rounded-full mt-2"></div>
+                                              <div>
+                                                <p className="text-xs font-semibold text-blue-700 mb-1">
+                                                  Customer Tone
+                                                </p>
+                                                <p className="text-sm text-slate-700">
+                                                  {
+                                                    call.callSummary
+                                                      .customerTone
+                                                  }
+                                                </p>
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          {/* Conversion Attempt */}
+                                          <div className="bg-white rounded-lg p-3 border border-indigo-100">
+                                            <div className="flex items-start space-x-2">
+                                              <div className="w-2 h-2 bg-purple-400 rounded-full mt-2"></div>
+                                              <div>
+                                                <p className="text-xs font-semibold text-purple-700 mb-1">
+                                                  Conversion Attempt
+                                                </p>
+                                                <p className="text-sm text-slate-700">
+                                                  {
+                                                    call.callSummary
+                                                      .conversionAttempt
+                                                  }
+                                                </p>
+                                              </div>
+                                            </div>
+                                          </div>
+
+                                          {/* Key Outcomes */}
+                                          {call.callSummary.keyOutcomes &&
+                                            call.callSummary.keyOutcomes
+                                              .length > 0 && (
+                                              <div className="bg-white rounded-lg p-3 border border-indigo-100">
+                                                <div className="flex items-start space-x-2">
+                                                  <div className="w-2 h-2 bg-green-400 rounded-full mt-2"></div>
+                                                  <div>
+                                                    <p className="text-xs font-semibold text-green-700 mb-1">
+                                                      Key Outcomes
+                                                    </p>
+                                                    <ul className="text-sm text-slate-700 space-y-1">
+                                                      {call.callSummary.keyOutcomes.map(
+                                                        (
+                                                          outcome: string,
+                                                          index: number
+                                                        ) => (
+                                                          <li
+                                                            key={index}
+                                                            className="flex items-start space-x-2"
+                                                          >
+                                                            <span className="text-green-500 mt-1">
+                                                              •
+                                                            </span>
+                                                            <span>
+                                                              {outcome}
+                                                            </span>
+                                                          </li>
+                                                        )
+                                                      )}
+                                                    </ul>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            )}
+
+                                          {/* Next Call Strategy */}
+                                          <div className="bg-white rounded-lg p-3 border border-indigo-100">
+                                            <div className="flex items-start space-x-2">
+                                              <div className="w-2 h-2 bg-yellow-400 rounded-full mt-2"></div>
+                                              <div>
+                                                <p className="text-xs font-semibold text-yellow-700 mb-1">
+                                                  Next Call Strategy
+                                                </p>
+                                                <p className="text-sm text-slate-700">
+                                                  {
+                                                    call.callSummary
+                                                      .nextCallStrategy
+                                                  }
+                                                </p>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
                         </div>
-
-                        {/* Call Content */}
-                        <div className="p-5 space-y-4">
-                          {/* Transcript Section */}
-                          {call.transcript && (
-                            <div className="bg-white rounded-lg border border-slate-200 p-4">
-                              <div className="flex items-center justify-between mb-3">
-                                <h5 className="text-sm font-semibold text-slate-700 flex items-center space-x-2">
-                                  <MessageSquare className="w-4 h-4" />
-                                  <span>Conversation</span>
-                                </h5>
-                                <button
-                                  onClick={() =>
-                                    openTranscriptModal(call.transcript)
-                                  }
-                                  className="flex items-center space-x-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium"
-                                >
-                                  <Eye className="w-4 h-4" />
-                                  <span>View Full</span>
-                                </button>
-                              </div>
-                              <p className="text-sm text-slate-600 line-clamp-2 leading-relaxed">
-                                {call.transcript.length > 150
-                                  ? `${call.transcript.substring(0, 150)}...`
-                                  : call.transcript}
-                              </p>
-                            </div>
-                          )}
-
-                          {/* AI Suggestions Section */}
-                          {call.aiSuggestions &&
-                            call.aiSuggestions.length > 0 && (
-                              <div className="bg-white rounded-lg border border-slate-200 p-4">
-                                <div className="flex items-center justify-between mb-3">
-                                  <h5 className="text-sm font-semibold text-slate-700 flex items-center space-x-2">
-                                    <Lightbulb className="w-4 h-4" />
-                                    <span>
-                                      AI Suggestions (
-                                      {call.aiSuggestions.length})
-                                    </span>
-                                  </h5>
-                                  <button
-                                    onClick={() =>
-                                      openSuggestionsModal(call.aiSuggestions)
-                                    }
-                                    className="flex items-center space-x-1 px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm font-medium"
-                                  >
-                                    <Lightbulb className="w-4 h-4" />
-                                    <span>View All</span>
-                                  </button>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                  {call.aiSuggestions
-                                    .slice(0, 2)
-                                    .map((suggestion, index) => (
-                                      <div
-                                        key={index}
-                                        className="bg-gradient-to-br from-purple-50 to-indigo-50 p-3 rounded-lg border border-purple-100 hover:shadow-sm transition-shadow"
-                                      >
-                                        <div className="flex items-start justify-between mb-2">
-                                          <div className="flex items-center space-x-2">
-                                            <div className="p-1 bg-purple-100 rounded">
-                                              {getSuggestionIcon(
-                                                suggestion.type
-                                              )}
-                                            </div>
-                                            <span className="text-xs font-semibold text-purple-700 bg-purple-100 px-2 py-1 rounded-full">
-                                              {suggestion.type
-                                                .replace("_", " ")
-                                                .toUpperCase()}
-                                            </span>
-                                          </div>
-                                          <div className="flex items-center space-x-1">
-                                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                                            <span className="text-xs text-slate-500">
-                                              {(
-                                                suggestion.confidence * 100
-                                              ).toFixed(0)}
-                                              %
-                                            </span>
-                                          </div>
-                                        </div>
-                                        <p className="text-sm text-slate-800 mb-2 line-clamp-2 leading-relaxed">
-                                          {suggestion.text}
-                                        </p>
-                                        <div className="flex items-center justify-between text-xs">
-                                          <span className="text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                                            {suggestion.deliver_as}
-                                          </span>
-                                          <span className="text-slate-400 font-mono">
-                                            {suggestion.offer_id}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  {call.aiSuggestions.length > 2 && (
-                                    <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-lg p-3 flex items-center justify-center">
-                                      <span className="text-sm text-slate-500 font-medium">
-                                        +{call.aiSuggestions.length - 2} more
-                                        suggestions
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                          {/* Call Analysis Summary */}
-                          {call.callAnalysis && call.callAnalysis.summary && (
-                            <div className="bg-white rounded-xl border border-slate-200 p-6 mb-4">
-                              <h5 className="text-base font-semibold text-slate-800 flex items-center gap-2 mb-5">
-                                <Activity className="w-5 h-5" />
-                                <span>Call Analysis</span>
-                              </h5>
-
-                              {/* Summary */}
-                              <div className="mb-6">
-                                <p className="text-base text-slate-900 font-semibold mb-2">
-                                  Summary
-                                </p>
-                                <div className="bg-slate-50 p-4 rounded-lg text-slate-700 text-sm leading-relaxed">
-                                  {call.callAnalysis.summary}
-                                </div>
-                              </div>
-
-                              {/* Key Metrics */}
-                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 mb-6">
-                                {/* Client Engagement */}
-                                <div className="flex flex-col items-center text-center">
-                                  <p className="text-xs text-slate-500 mb-1">
-                                    Client Engagement
-                                  </p>
-                                  <span className="text-2xl font-bold text-blue-600 mb-1">
-                                    {Math.round(
-                                      (call.callAnalysis.customerEngagement || 0) * 100
-                                    )}
-                                    %
-                                  </span>
-                                  <div className="w-full bg-slate-200 rounded-full h-2 mt-2">
-                                    <div 
-                                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                                      style={{ 
-                                        width: `${Math.min((call.callAnalysis.customerEngagement || 0) * 100, 100)}%` 
-                                      }}
-                                    ></div>
-                                  </div>
-                                </div>
-                                {/* Agent Performance */}
-                                <div className="flex flex-col items-center text-center">
-                                  <p className="text-xs text-slate-500 mb-1">
-                                    Agent Performance
-                                  </p>
-                                  <span className="text-2xl font-bold text-green-600 mb-1">
-                                    {Math.round(
-                                      (call.callAnalysis.agentPerformance || 0) * 100
-                                    )}
-                                    %
-                                  </span>
-                                  <div className="w-full bg-slate-200 rounded-full h-2 mt-2">
-                                    <div 
-                                      className="bg-green-600 h-2 rounded-full transition-all duration-300"
-                                      style={{ 
-                                        width: `${Math.min((call.callAnalysis.agentPerformance || 0) * 100, 100)}%` 
-                                      }}
-                                    ></div>
-                                  </div>
-                                </div>
-                                {/* Response Time */}
-                                <div className="flex flex-col items-center text-center">
-                                  <p className="text-xs text-slate-500 mb-1">
-                                    Avg Response Time
-                                  </p>
-                                  <span className="text-2xl font-bold text-yellow-600 mb-1">
-                                    {call.callAnalysis.metrics?.averageResponseTime
-                                      ? `${Math.round(call.callAnalysis.metrics.averageResponseTime)}s`
-                                      : "N/A"}
-                                  </span>
-                                  <div className="text-xs text-slate-500 mt-1">
-                                    {call.callAnalysis.metrics?.averageResponseTime
-                                      ? call.callAnalysis.metrics.averageResponseTime < 3
-                                        ? "Excellent"
-                                        : call.callAnalysis.metrics.averageResponseTime < 5
-                                        ? "Good"
-                                        : "Needs Improvement"
-                                      : ""}
-                                  </div>
-                                </div>
-                                {/* Questions Asked */}
-                                <div className="flex flex-col items-center text-center">
-                                  <p className="text-xs text-slate-500 mb-1">
-                                    Questions Asked
-                                  </p>
-                                  <span className="text-2xl font-bold text-indigo-600 mb-1">
-                                    {call.callAnalysis.metrics?.questionCount || 0}
-                                  </span>
-                                  <div className="text-xs text-slate-500 mt-1">
-                                    {call.callAnalysis.metrics?.questionCount
-                                      ? call.callAnalysis.metrics.questionCount > 5
-                                        ? "Engaging"
-                                        : call.callAnalysis.metrics.questionCount > 2
-                                        ? "Good"
-                                        : "Could ask more"
-                                      : ""}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Key Topics */}
-                              {call.callAnalysis.keyTopics &&
-                                call.callAnalysis.keyTopics.length > 0 && (
-                                  <div className="mb-6">
-                                    <p className="text-base text-slate-900 font-semibold mb-2">
-                                      Key Topics
-                                    </p>
-                                    <div className="flex flex-wrap gap-2">
-                                      {call.callAnalysis.keyTopics.map(
-                                        (topic, index) => (
-                                          <span
-                                            key={index}
-                                            className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium"
-                                          >
-                                            {topic}
-                                          </span>
-                                        )
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
-
-                              {/* Insights */}
-                              {call.callAnalysis.insights && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                  {call.callAnalysis.insights.strengths &&
-                                    call.callAnalysis.insights.strengths
-                                      .length > 0 && (
-                                      <div>
-                                        <p className="text-xs font-semibold text-green-700 mb-2">
-                                          Strengths
-                                        </p>
-                                        <ul className="text-sm text-slate-700 space-y-2 list-disc list-inside pl-2">
-                                          {call.callAnalysis.insights.strengths
-                                            .slice(0, 2)
-                                            .map((strength, index) => (
-                                              <li key={index}>{strength}</li>
-                                            ))}
-                                        </ul>
-                                      </div>
-                                    )}
-
-                                  {call.callAnalysis.insights.improvements &&
-                                    call.callAnalysis.insights.improvements
-                                      .length > 0 && (
-                                      <div>
-                                        <p className="text-xs font-semibold text-yellow-700 mb-2">
-                                          Improvements
-                                        </p>
-                                        <ul className="text-sm text-slate-700 space-y-2 list-disc list-inside pl-2">
-                                          {call.callAnalysis.insights.improvements
-                                            .slice(0, 2)
-                                            .map((improvement, index) => (
-                                              <li key={index}>{improvement}</li>
-                                            ))}
-                                        </ul>
-                                      </div>
-                                    )}
-                                </div>
-                              )}
-
-                              {/* AI Agent Feedback Section - Compact */}
-                              {call.agentFeedback && (
-                                <div className="mt-4">
-                                  <button
-                                    onClick={() => toggleSection(call._id, 'agentFeedback')}
-                                    className="flex items-center justify-between w-full p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 hover:from-blue-100 hover:to-indigo-100 transition-all duration-200"
-                                  >
-                                    <div className="flex items-center space-x-2">
-                                      <div className="p-1.5 bg-blue-100 rounded-lg">
-                                        <Target className="w-4 h-4 text-blue-600" />
-                                      </div>
-                                      <div className="text-left">
-                                        <h6 className="text-sm font-semibold text-blue-900">
-                                          AI Agent Feedback & Next Steps
-                                        </h6>
-                                        <p className="text-xs text-blue-700">
-                                          Performance: {call.agentFeedback.performanceScore || 'N/A'}/10
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                      <div className="text-xs text-blue-600 font-medium">
-                                        {isSectionExpanded(call._id, 'agentFeedback') ? 'Hide' : 'View'}
-                                      </div>
-                                      <div className={`transform transition-transform duration-200 ${
-                                        isSectionExpanded(call._id, 'agentFeedback') ? 'rotate-180' : ''
-                                      }`}>
-                                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                        </svg>
-                                      </div>
-                                    </div>
-                                  </button>
-                                  
-                                  {isSectionExpanded(call._id, 'agentFeedback') && (
-                                    <div className="mt-4 p-4 bg-white rounded-lg border border-blue-200">
-                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {/* Performance Score */}
-                                    <div className="bg-white rounded-lg p-3 border border-blue-100">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <span className="text-xs font-medium text-slate-700">Overall Performance</span>
-                                        <span className="text-sm font-bold text-blue-600">
-                                          {call.agentFeedback.performanceScore || 'N/A'}/10
-                                        </span>
-                                      </div>
-                                      <div className="w-full bg-slate-200 rounded-full h-2">
-                                        <div 
-                                          className={`h-2 rounded-full transition-all duration-300 ${
-                                            (call.agentFeedback.performanceScore || 0) >= 8 
-                                              ? 'bg-green-500' 
-                                              : (call.agentFeedback.performanceScore || 0) >= 6 
-                                              ? 'bg-yellow-500' 
-                                              : 'bg-red-500'
-                                          }`}
-                                          style={{ 
-                                            width: `${((call.agentFeedback.performanceScore || 0) / 10) * 100}%` 
-                                          }}
-                                        ></div>
-                                      </div>
-                                      <p className="text-xs text-slate-600 mt-1">
-                                        {call.agentFeedback.overallFeedback || 'No overall feedback available'}
-                                      </p>
-                                    </div>
-
-                                    {/* Conversation Quality */}
-                                    {call.agentFeedback.conversationQuality && (
-                                      <div className="bg-white rounded-lg p-3 border border-blue-100">
-                                        <div className="flex items-center justify-between mb-2">
-                                          <span className="text-xs font-medium text-slate-700">Conversation Quality</span>
-                                          <span className="text-sm font-bold text-blue-600">
-                                            {call.agentFeedback.conversationQuality.rating || 'N/A'}/10
-                                          </span>
-                                        </div>
-                                        <p className="text-xs text-slate-600">
-                                          {call.agentFeedback.conversationQuality.feedback || 'No feedback available'}
-                                        </p>
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  {/* Strengths and Improvements */}
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                    {/* Strengths */}
-                                    {call.agentFeedback.strengths && call.agentFeedback.strengths.length > 0 && (
-                                      <div className="bg-white rounded-lg p-3 border border-green-100">
-                                        <div className="flex items-center space-x-2 mb-2">
-                                          <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                                          <span className="text-xs font-semibold text-green-700">Strengths</span>
-                                        </div>
-                                        <ul className="text-xs text-slate-700 space-y-1">
-                                          {call.agentFeedback.strengths.map((strength: string, index: number) => (
-                                            <li key={index} className="flex items-start space-x-2">
-                                              <span className="text-green-500 mt-1">•</span>
-                                              <span>{strength}</span>
-                                            </li>
-                                          ))}
-                                        </ul>
-                                      </div>
-                                    )}
-
-                                    {/* Improvements */}
-                                    {call.agentFeedback.improvements && call.agentFeedback.improvements.length > 0 && (
-                                      <div className="bg-white rounded-lg p-3 border border-yellow-100">
-                                        <div className="flex items-center space-x-2 mb-2">
-                                          <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
-                                          <span className="text-xs font-semibold text-yellow-700">Areas for Improvement</span>
-                                        </div>
-                                        <ul className="text-xs text-slate-700 space-y-1">
-                                          {call.agentFeedback.improvements.map((improvement: string, index: number) => (
-                                            <li key={index} className="flex items-start space-x-2">
-                                              <span className="text-yellow-500 mt-1">•</span>
-                                              <span>{improvement}</span>
-                                            </li>
-                                          ))}
-                                        </ul>
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  {/* Sales Techniques & Customer Handling */}
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                    {/* Sales Techniques */}
-                                    {call.agentFeedback.salesTechniques && (
-                                      <div className="bg-white rounded-lg p-3 border border-purple-100">
-                                        <div className="flex items-center justify-between mb-2">
-                                          <span className="text-xs font-semibold text-purple-700">Sales Techniques</span>
-                                          <span className="text-xs font-bold text-purple-600">
-                                            {call.agentFeedback.salesTechniques.rating || 'N/A'}/10
-                                          </span>
-                                        </div>
-                                        <p className="text-xs text-slate-600 mb-2">
-                                          {call.agentFeedback.salesTechniques.feedback || 'No feedback available'}
-                                        </p>
-                                        {call.agentFeedback.salesTechniques.suggestions && call.agentFeedback.salesTechniques.suggestions.length > 0 && (
-                                          <div>
-                                            <span className="text-xs font-medium text-slate-700">Suggestions:</span>
-                                            <ul className="text-xs text-slate-600 mt-1 space-y-1">
-                                              {call.agentFeedback.salesTechniques.suggestions.map((suggestion: string, index: number) => (
-                                                <li key={index} className="flex items-start space-x-2">
-                                                  <span className="text-purple-500 mt-1">•</span>
-                                                  <span>{suggestion}</span>
-                                                </li>
-                                              ))}
-                                            </ul>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-
-                                    {/* Customer Handling */}
-                                    {call.agentFeedback.customerHandling && (
-                                      <div className="bg-white rounded-lg p-3 border border-blue-100">
-                                        <div className="flex items-center justify-between mb-2">
-                                          <span className="text-xs font-semibold text-blue-700">Customer Handling</span>
-                                          <span className="text-xs font-bold text-blue-600">
-                                            {call.agentFeedback.customerHandling.rating || 'N/A'}/10
-                                          </span>
-                                        </div>
-                                        <p className="text-xs text-slate-600 mb-2">
-                                          {call.agentFeedback.customerHandling.feedback || 'No feedback available'}
-                                        </p>
-                                        {call.agentFeedback.customerHandling.suggestions && call.agentFeedback.customerHandling.suggestions.length > 0 && (
-                                          <div>
-                                            <span className="text-xs font-medium text-slate-700">Suggestions:</span>
-                                            <ul className="text-xs text-slate-600 mt-1 space-y-1">
-                                              {call.agentFeedback.customerHandling.suggestions.map((suggestion: string, index: number) => (
-                                                <li key={index} className="flex items-start space-x-2">
-                                                  <span className="text-blue-500 mt-1">•</span>
-                                                  <span>{suggestion}</span>
-                                                </li>
-                                              ))}
-                                            </ul>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  {/* Next Steps */}
-                                  {call.agentFeedback.nextSteps && call.agentFeedback.nextSteps.length > 0 && (
-                                    <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                                      <div className="flex items-start space-x-2">
-                                        <Lightbulb className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
-                                        <div>
-                                          <p className="text-xs font-medium text-slate-700 mb-1">Next Steps for Future Calls:</p>
-                                          <ul className="text-xs text-slate-600 space-y-1">
-                                            {call.agentFeedback.nextSteps.map((step: string, index: number) => (
-                                              <li key={index} className="flex items-start space-x-2">
-                                                <span className="text-yellow-500 mt-1">•</span>
-                                                <span>{step}</span>
-                                              </li>
-                                            ))}
-                                          </ul>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-
-                              {/* Call Summary Section - Compact */}
-                              {call.callSummary && (
-                                <div className="mt-4">
-                                  <button
-                                    onClick={() => toggleSection(call._id, 'callSummary')}
-                                    className="flex items-center justify-between w-full p-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg border border-indigo-200 hover:from-indigo-100 hover:to-purple-100 transition-all duration-200"
-                                  >
-                                    <div className="flex items-center space-x-2">
-                                      <div className="p-1.5 bg-indigo-100 rounded-lg">
-                                        <MessageSquare className="w-4 h-4 text-indigo-600" />
-                                      </div>
-                                      <div className="text-left">
-                                        <h6 className="text-sm font-semibold text-indigo-900">
-                                          Call Summary
-                                        </h6>
-                                        <p className="text-xs text-indigo-700">
-                                          {call.callSummary.overallAssessment?.substring(0, 60)}...
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                      <div className="text-xs text-indigo-600 font-medium">
-                                        {isSectionExpanded(call._id, 'callSummary') ? 'Hide' : 'View'}
-                                      </div>
-                                      <div className={`transform transition-transform duration-200 ${
-                                        isSectionExpanded(call._id, 'callSummary') ? 'rotate-180' : ''
-                                      }`}>
-                                        <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                        </svg>
-                                      </div>
-                                    </div>
-                                  </button>
-                                  
-                                  {isSectionExpanded(call._id, 'callSummary') && (
-                                    <div className="mt-4 p-4 bg-white rounded-lg border border-indigo-200">
-                                  
-                                  <div className="space-y-4">
-                                    {/* Overall Assessment */}
-                                    <div className="bg-white rounded-lg p-3 border border-indigo-100">
-                                      <div className="flex items-start space-x-2">
-                                        <div className="w-2 h-2 bg-indigo-400 rounded-full mt-2"></div>
-                                        <div>
-                                          <p className="text-xs font-semibold text-indigo-700 mb-1">Overall Assessment</p>
-                                          <p className="text-sm text-slate-700">{call.callSummary.overallAssessment}</p>
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    {/* Customer Tone */}
-                                    <div className="bg-white rounded-lg p-3 border border-indigo-100">
-                                      <div className="flex items-start space-x-2">
-                                        <div className="w-2 h-2 bg-blue-400 rounded-full mt-2"></div>
-                                        <div>
-                                          <p className="text-xs font-semibold text-blue-700 mb-1">Customer Tone</p>
-                                          <p className="text-sm text-slate-700">{call.callSummary.customerTone}</p>
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    {/* Conversion Attempt */}
-                                    <div className="bg-white rounded-lg p-3 border border-indigo-100">
-                                      <div className="flex items-start space-x-2">
-                                        <div className="w-2 h-2 bg-purple-400 rounded-full mt-2"></div>
-                                        <div>
-                                          <p className="text-xs font-semibold text-purple-700 mb-1">Conversion Attempt</p>
-                                          <p className="text-sm text-slate-700">{call.callSummary.conversionAttempt}</p>
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    {/* Key Outcomes */}
-                                    {call.callSummary.keyOutcomes && call.callSummary.keyOutcomes.length > 0 && (
-                                      <div className="bg-white rounded-lg p-3 border border-indigo-100">
-                                        <div className="flex items-start space-x-2">
-                                          <div className="w-2 h-2 bg-green-400 rounded-full mt-2"></div>
-                                          <div>
-                                            <p className="text-xs font-semibold text-green-700 mb-1">Key Outcomes</p>
-                                            <ul className="text-sm text-slate-700 space-y-1">
-                                              {call.callSummary.keyOutcomes.map((outcome: string, index: number) => (
-                                                <li key={index} className="flex items-start space-x-2">
-                                                  <span className="text-green-500 mt-1">•</span>
-                                                  <span>{outcome}</span>
-                                                </li>
-                                              ))}
-                                            </ul>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {/* Next Call Strategy */}
-                                    <div className="bg-white rounded-lg p-3 border border-indigo-100">
-                                      <div className="flex items-start space-x-2">
-                                        <div className="w-2 h-2 bg-yellow-400 rounded-full mt-2"></div>
-                                        <div>
-                                          <p className="text-xs font-semibold text-yellow-700 mb-1">Next Call Strategy</p>
-                                          <p className="text-sm text-slate-700">{call.callSummary.nextCallStrategy}</p>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          )
+          )}
         </div>
+      </div>
 
       {/* Transcript Modal */}
       {isTranscriptModalOpen && selectedTranscript && (

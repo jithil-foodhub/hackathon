@@ -4,6 +4,7 @@ import { LatencyProfiler } from '../services/latencyProfiler';
 import { CallRecord } from '../models/CallRecord';
 import { CallAnalysisService } from '../services/callAnalysisService';
 import { rateLimiter } from '../services/rateLimiter';
+import { ExternalWebhookService } from '../services/externalWebhookService';
 
 // Global type declaration for processing states and caching
 declare global {
@@ -1072,6 +1073,21 @@ export async function performEndOfCallAnalysis(
       };
       wsManager.broadcastToAll(endOfCallAnalysisMessage);
       console.log(`🏁 End-of-call analysis completed and sent in ${Date.now() - startTime}ms`);
+    }
+
+    // 🌐 SEND TRANSCRIPT TO EXTERNAL WEBHOOKS
+    if (finalTranscript && finalTranscript.length > 50) {
+      try {
+        console.log('🌐 Sending transcript to external webhooks...');
+        // Send to external webhooks in background (don't await to avoid blocking)
+        ExternalWebhookService.sendTranscriptToExternalWebhooks(finalTranscript, callRecord)
+          .catch(error => {
+            console.error('❌ Error sending to external webhooks:', error);
+          });
+        console.log('✅ External webhook calls initiated');
+      } catch (error) {
+        console.error('❌ Error initiating external webhook calls:', error);
+      }
     }
     
     console.log('🏁 ===== END-OF-CALL ANALYSIS COMPLETE =====');

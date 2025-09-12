@@ -8,6 +8,7 @@ import { CallRecord } from '../models/CallRecord';
 import { mongoDBService } from '../services/mongodb';
 import { performEndOfCallAnalysis } from './twilioTranscription';
 import { PROMPTS, buildPrompt } from '../prompts';
+import { ExternalWebhookService } from '../services/externalWebhookService';
 import dotenv from 'dotenv';
 import path from 'path';
 

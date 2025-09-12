@@ -16,6 +16,7 @@ import { twilioMediaStreamWebhook } from './routes/twilioMediaStream';
 import { getAnalytics, getCallSummary } from './routes/analytics';
 import { getEnhancedAnalytics, getObjectionAnalysis } from './routes/enhancedAnalytics';
 import { generateSuggestion } from './routes/api';
+import { testExternalWebhooks, getExternalWebhooks, addExternalWebhook, removeExternalWebhook, sendCallToExternalWebhooks } from './routes/externalWebhooks';
 import { customerSimulation } from './routes/customer';
 import { clientTranscriptWebhook } from './routes/webhook';
 import { getClients, getClient, createClient, updateClient, deleteClient, getClientStats, getClientCalls, clearClientData } from './routes/clients';
@@ -116,6 +117,13 @@ app.get('/api/analytics/call/:callId', getCallSummary);
 // Enhanced Analytics endpoints
 app.get('/api/analytics/enhanced', getEnhancedAnalytics);
 app.get('/api/analytics/objections', getObjectionAnalysis);
+
+// External Webhook endpoints
+app.get('/api/webhooks/external/test', testExternalWebhooks);
+app.get('/api/webhooks/external', getExternalWebhooks);
+app.post('/api/webhooks/external', addExternalWebhook);
+app.delete('/api/webhooks/external', removeExternalWebhook);
+app.post('/api/webhooks/external/send/:callId', sendCallToExternalWebhooks);
 
 // Preview generated websites
 // Serve deployed websites (local fallback)
