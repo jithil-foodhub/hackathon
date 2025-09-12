@@ -14,6 +14,7 @@ import { twilioCallWebhook, manualTriggerCallAnalysis, checkInProgressCalls } fr
 import { twilioTranscriptionWebhook } from './routes/twilioTranscription';
 import { twilioMediaStreamWebhook } from './routes/twilioMediaStream';
 import { getAnalytics, getCallSummary } from './routes/analytics';
+import { getEnhancedAnalytics, getObjectionAnalysis } from './routes/enhancedAnalytics';
 import { generateSuggestion } from './routes/api';
 import { customerSimulation } from './routes/customer';
 import { clientTranscriptWebhook } from './routes/webhook';
@@ -111,6 +112,10 @@ app.delete('/api/clients/:agentId/sites/:fileName', deleteClientSite);
 // Analytics endpoints
 app.get('/api/analytics', getAnalytics);
 app.get('/api/analytics/call/:callId', getCallSummary);
+
+// Enhanced Analytics endpoints
+app.get('/api/analytics/enhanced', getEnhancedAnalytics);
+app.get('/api/analytics/objections', getObjectionAnalysis);
 
 // Preview generated websites
 // Serve deployed websites (local fallback)
