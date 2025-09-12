@@ -3,6 +3,7 @@ import { WebSocketManager } from '../services/websocket';
 import { LatencyProfiler } from '../services/latencyProfiler';
 import { CallRecord } from '../models/CallRecord';
 import { CallAnalysisService } from '../services/callAnalysisService';
+import { FastAIService } from '../services/fastAiService';
 
 interface TwilioTranscriptionData {
   CallSid: string;
@@ -116,19 +117,24 @@ export function twilioTranscriptionWebhook(
 
             wsManager.broadcastToAll(wsMessage);
 
-            // Process the transcript for AI suggestions - optimized for token efficiency
-            // Process every 500 characters to reduce API calls
-            console.log(`🔍 Checking AI processing condition: length=${updatedTranscript.length}, condition=${updatedTranscript.length > 500}`);
-            if (updatedTranscript.length > 30) {
-              console.log(`🤖 Triggering AI processing for transcript length: ${updatedTranscript.length}`);
+            // Fast live suggestions for agent (immediate response)
+            console.log(`🚀 Triggering FAST live suggestions for transcript length: ${updatedTranscript.length}`);
+            if (updatedTranscript.length > 10) {
               try {
-                await processTranscriptionForAI(callRecord, updatedTranscript, wsManager);
-                console.log(`✅ AI processing completed successfully`);
+                await generateFastLiveSuggestions(callRecord, updatedTranscript, speaker, transcript, wsManager);
+                console.log(`⚡ Fast live suggestions completed`);
               } catch (error) {
-                console.error(`❌ Error in AI processing:`, error);
+                console.error(`❌ Error in fast live suggestions:`, error);
               }
-            } else {
-              console.log(`⏳ Skipping AI processing - transcript too short (${updatedTranscript.length} chars)`);
+            }
+
+            // Background comprehensive analysis (runs in parallel)
+            if (updatedTranscript.length > 100) {
+              console.log(`🤖 Triggering background AI analysis for transcript length: ${updatedTranscript.length}`);
+              // Run comprehensive analysis in background without blocking live suggestions
+              processTranscriptionForAI(callRecord, updatedTranscript, wsManager)
+                .then(() => console.log(`✅ Background AI analysis completed`))
+                .catch(error => console.error(`❌ Error in background AI analysis:`, error));
             }
           } else {
             console.log(`⚠️ Call record not found for CallSid: ${callSid}`);
@@ -311,6 +317,75 @@ function mapEmotionToMood(emotion: string): string {
   };
   
   return moodMap[emotion] || 'neutral';
+}
+
+// Fast live suggestions function for immediate agent assistance
+async function generateFastLiveSuggestions(
+  callRecord: CallRecord,
+  fullTranscript: string,
+  currentSpeaker: string,
+  currentMessage: string,
+  wsManager: WebSocketManager
+) {
+  try {
+    console.log(`⚡ ===== GENERATING FAST LIVE SUGGESTIONS =====`);
+    console.log(`📞 Call ID: ${callRecord._id}`);
+    console.log(`👤 Current Speaker: ${currentSpeaker}`);
+    console.log(`💬 Current Message: "${currentMessage}"`);
+    
+    // Only generate suggestions when customer is speaking
+    if (currentSpeaker !== 'Customer') {
+      console.log(`⏭️ Skipping suggestions - agent is speaking`);
+      return;
+    }
+
+    const fastAI = new FastAIService();
+    const startTime = Date.now();
+    
+    // Generate fast suggestions
+    const fastResponse = await fastAI.generateFastSuggestions(
+      fullTranscript,
+      'customer',
+      currentMessage
+    );
+    
+    const processingTime = Date.now() - startTime;
+    console.log(`⚡ Fast suggestions generated in ${processingTime}ms`);
+    
+    // Broadcast fast live suggestions immediately
+    const liveSuggestionMessage = {
+      type: 'fast_live_suggestions',
+      callSid: callRecord.metadata?.callSid,
+      suggestions: fastResponse.suggestions,
+      competitor_container: fastResponse.competitor_container,
+      processing_time_ms: fastResponse.processing_time_ms,
+      timestamp: new Date().toISOString(),
+      priority: 'immediate'
+    };
+
+    wsManager.broadcastToAll(liveSuggestionMessage);
+    
+    console.log(`🚀 Fast live suggestions broadcasted:`);
+    fastResponse.suggestions.forEach((suggestion, index) => {
+      console.log(`   ${index + 1}. [${suggestion.type.toUpperCase()}] "${suggestion.text}"`);
+      console.log(`      🎯 Core: ${suggestion.core_highlight}`);
+      console.log(`      📊 Confidence: ${(suggestion.confidence * 100).toFixed(1)}%`);
+      console.log(`      🚨 Priority: ${suggestion.priority}`);
+      if (suggestion.competitor_analysis) {
+        console.log(`      🏆 FoodHub Advantage: ${suggestion.competitor_analysis.foodhub_advantage}`);
+      }
+    });
+    
+    if (fastResponse.competitor_container) {
+      console.log(`🏆 Competitor Analysis: ${fastResponse.competitor_container.competitor_name}`);
+    }
+    
+    console.log(`⚡ Total processing time: ${processingTime}ms`);
+    console.log(`===============================================\n`);
+
+  } catch (error) {
+    console.error('❌ Error generating fast live suggestions:', error);
+  }
 }
 
 // Enhanced processTranscriptionForAI function
