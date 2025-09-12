@@ -250,7 +250,7 @@ export class CallAnalysisService {
       const prompt = buildPrompt.agentFeedback(transcript, callAnalysis);
 
       const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini', // Force GPT-4o-mini for cost optimization
+        model: process.env.OPENAI_MODEL, // Force GPT-4o-mini for cost optimization
         messages: [
           {
             role: "system",
@@ -353,7 +353,7 @@ export class CallAnalysisService {
       const prompt = buildPrompt.callSummary(transcript, callAnalysis, agentFeedback);
 
       const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini', // Force GPT-4o-mini for cost optimization
+        model: process.env.OPENAI_MODEL, // Force GPT-4o-mini for cost optimization
         messages: [
           {
             role: "system",
@@ -525,7 +525,7 @@ export class CallAnalysisService {
       const prompt = buildPrompt.callAnalysis(transcript);
 
       const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini', // Force GPT-4o-mini for cost optimization
+        model: process.env.OPENAI_MODEL, // Force GPT-4o-mini for cost optimization
         messages: [
           {
             role: "system",
@@ -872,7 +872,7 @@ export class CallAnalysisService {
       const prompt = buildPrompt.enhancedAnalysis(transcript);
 
       const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini', // Force GPT-4o-mini for cost optimization
+        model: process.env.OPENAI_MODEL, // Force GPT-4o-mini for cost optimization
         messages: [
           {
             role: "system",

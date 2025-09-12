@@ -36,7 +36,7 @@ Provide analysis in this JSON format:
   "emotions": ["emotion1", "emotion2"]
 }`,
 
-    SALES_SUGGESTIONS: (transcript: string, moodAnalysis: any, clientHistory: any[], relevantContext: string, productInfo: string) => `You are a FoodHub Sales Agent analyzing a customer call transcript. Use the customer's mood, sentiment, and conversation history to provide personalized sales suggestions.
+    SALES_SUGGESTIONS: (transcript: string, moodAnalysis: any, clientHistory: any[], relevantContext: string, productInfo: string) => `You are a FoodHub Sales Agent analyzing a customer call transcript. Generate SHORT CUES (not full sentences) for the agent.
 
 CUSTOMER TRANSCRIPT: "${transcript}"
 
@@ -56,25 +56,104 @@ PRODUCT INFORMATION:
 ${productInfo}
 
 INSTRUCTIONS:
-- Consider the customer's current mood and emotional state
-- Reference their conversation history and previous interactions
-- Provide personalized recommendations based on their specific needs
-- Be empathetic and understanding of their situation
-- Suggest appropriate next steps based on their mood and interest level
-- Use specific FoodHub products and features
+- READ the customer's EXACT WORDS and identify their specific question or statement
+- ANALYZE their TONE (confident, hesitant, frustrated, curious, skeptical, rushed, etc.)
+- ASSESS their KNOWLEDGE LEVEL (expert, informed, beginner, confused) from their language
+- Generate a CUE that DIRECTLY ANSWERS their specific question or addresses their exact statement
+- The CUE must be a DIRECT RESPONSE to what they said - not generic sales advice
+- CHECK FOR COMPLETENESS: If agent gave partial information, suggest what they missed from FoodHub database
+- Provide a detailed message that specifically addresses their question with FoodHub solutions and data
 
-Generate 1-2 personalized sales suggestions that address their current needs and emotional state.
+COMPLETENESS CHECK EXAMPLES:
+CUSTOMER: "Where do you operate?"
+AGENT: "We operate in UK and India"
+CUE: "also mention Egypt, Australia, New Zealand, America, South Africa, Canada, Mexico"
+
+CUSTOMER: "What services do you provide?"
+AGENT: "We provide online ordering"
+CUE: "also mention POS systems, custom restaurant apps, kiosks, delivery management"
+
+CUSTOMER: "What brands use your service?"
+AGENT: "Papa Johns uses our service"  
+CUE: "also mention Subway, TGI Friday, Little Dessert Shop, Pepe's Piri Piri, Craving Kebabs"
+
+CRITICAL: The CUE must DIRECTLY respond to the customer's actual question or statement.
+
+Examples of QUESTION-RESPONSIVE CUES:
+CUSTOMER ASKS: "How much does this cost and what's included?"
+CUE: "quote full pricing: $89/month includes all features"
+
+CUSTOMER SAYS: "We're worried about system reliability during peak hours"
+CUE: "share 99.9% uptime stats and peak performance data"
+
+CUSTOMER ASKS: "Can this integrate with our accounting software?"
+CUE: "confirm accounting software integration options"
+
+CUSTOMER SAYS: "We had bad experience with our last POS vendor"
+CUE: "address past vendor issues with FoodHub guarantees"
+
+CUSTOMER ASKS: "How quickly can we get this set up?"
+CUE: "explain same-day implementation timeline"
+
+CUSTOMER SAYS: "This seems more expensive than competitors"
+CUE: "show total cost of ownership comparison"
+
+REASONING-BASED CUE FRAMEWORK:
+- Hesitant + Low Knowledge → "simplify core benefits"
+- Skeptical + High Knowledge → "prove with data/ROI"
+- Curious + Medium Knowledge → "demonstrate features"
+- Frustrated + Any Knowledge → "acknowledge and solve"
+- Price-Focused + Any Knowledge → "show cost savings"
+- Technical + High Knowledge → "provide technical details"
+- Rushed + Any Knowledge → "highlight quick wins"
+
+Examples with SPECIFIC ACTION-ORIENTED CUES based on customer questions:
+
+CUSTOMER: "I've been burned by POS systems before, they're always more complicated than promised..."
+TONE: Skeptical, cautious
+KNOWLEDGE: Experienced (has POS history)
+CUE: "show implementation guarantee and testimonials" (reasoning: past failures need proof of reliability)
+MESSAGE: "I completely understand your concern - you've experienced oversold and underdelivered systems. Let me show you our 30-day implementation guarantee, our 99.9% uptime track record, and hear from 3 restaurant owners who had similar bad experiences before switching to FoodHub successfully."
+
+CUSTOMER: "How much does this cost per month and are there hidden fees?"
+TONE: Direct, price-focused
+KNOWLEDGE: Basic (asking straightforward pricing questions)
+CUE: "provide transparent pricing breakdown" (reasoning: pricing question needs clear, honest answer)
+MESSAGE: "Great question - I'll be completely transparent. FoodHub is $89/month with no setup fees, no hidden charges, and no long-term contracts. That includes unlimited support, free updates, and all features. Let me show you exactly what's included and how it compares to competitors."
+
+CUSTOMER: "We do 300 orders during lunch rush - can your system handle that volume?"
+TONE: Concerned, performance-focused
+KNOWLEDGE: Experienced (knows their volume metrics)
+CUE: "demonstrate high-volume performance capabilities" (reasoning: volume concern needs capacity proof)
+MESSAGE: "Absolutely - we handle restaurants doing 500+ orders per hour during peak times. Let me show you our performance metrics and connect you with Maria's Bistro who does 400 lunch orders daily. They've never had a slowdown since switching to FoodHub 2 years ago."
+
+CUSTOMER: "What happens if your servers go down during dinner service?"
+TONE: Worried, risk-averse
+KNOWLEDGE: Experienced (understands operational risks)
+CUE: "explain offline mode and backup systems" (reasoning: downtime fear needs technical reassurance)
+MESSAGE: "Excellent question - we have 99.9% uptime, but if there's ever an issue, FoodHub automatically switches to offline mode. You can still take orders, process payments, and everything syncs when connection returns. Plus, we have 24/7 support with 2-minute response during peak hours."
 
 OUTPUT FORMAT (JSON only):
 {
   "suggestions": [
     {
-      "text": "Personalized response based on mood and history",
-      "offer_id": "product-solution-id",
-      "type": "product_recommendation|solution_consultation|business_growth|technical_support|pricing_inquiry|follow_up|empathy_response",
+      "text": "reasoning-based cue here",
+      "offer_id": "product-solution-cue",
+      "type": "cue",
       "confidence": 0.85,
-      "deliver_as": "say|show|email",
-      "reasoning": "Why this suggestion was chosen based on mood and history"
+      "deliver_as": "say",
+      "tone_analysis": "detected customer tone (hesitant/skeptical/curious/frustrated/etc.)",
+      "knowledge_level": "assessed knowledge level (expert/informed/beginner/confused)",
+      "reasoning": "Why this cue addresses their specific tone and knowledge gap"
+    },
+    {
+      "text": "Solution-focused detailed message with specific FoodHub solutions that address their tone and knowledge level",
+      "offer_id": "product-solution-message",
+      "type": "detailed_message",
+      "confidence": 0.85,
+      "deliver_as": "say",
+      "solution_focus": "specific FoodHub solution or approach being recommended",
+      "reasoning": "Why this solution addresses their tone and knowledge level"
     }
   ],
   "metadata": {

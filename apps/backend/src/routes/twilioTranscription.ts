@@ -361,14 +361,19 @@ async function handleSmartAIProcessing(
       processingState.lastProcessed = now;
       processingState.processingCount++;
       processingState.lastMeaningfulChunk = updatedTranscript;
-      processingState.cooldownUntil = now + 2000; // 2-second cooldown (optimized for speed)
+      processingState.cooldownUntil = now + 2000; // 2-second cooldown
       
       // Process with enhanced context
       await processTranscriptionForAI(callRecord, updatedTranscript, wsManager);
       
       console.log(`✅ Smart AI processing completed for call ${callId}`);
     } else {
-      console.log(`⏳ Smart AI processing skipped for call ${callId} - ${getSkipReason(processingState, updatedTranscript, speaker, now)}`);
+      const skipReason = getSkipReason(processingState, updatedTranscript, speaker, now);
+      if (speaker !== 'Customer') {
+        console.log(`⏳ Smart AI processing skipped for call ${callId} - agent speaking (AI suggestions only for customers)`);
+      } else {
+        console.log(`⏳ Smart AI processing skipped for call ${callId} - ${skipReason}`);
+      }
     }
     
   } catch (error) {
@@ -383,19 +388,19 @@ function shouldTriggerAIProcessing(
   speaker: string,
   now: number
 ): boolean {
-  // 1. Cooldown check - OPTIMIZED to 2 seconds for faster suggestions
+  // 1. Only generate AI suggestions for customer speech - never for agent
+  if (speaker !== 'Customer') {
+    return false;
+  }
+  
+  // 2. Cooldown check - 2 seconds between suggestions
   if (now < state.cooldownUntil) {
     return false;
   }
   
-  // 2. Minimum transcript length - REDUCED to 50 for faster triggering
+  // 3. Minimum transcript length - REDUCED to 50 for faster triggering
   if (transcript.length < 50) {
     return false;
-  }
-  
-  // 3. AGGRESSIVE: Trigger on ANY customer speech (removed agent dependency)
-  if (speaker === 'Customer') {
-    return true;
   }
   
   // 4. Meaningful conversation chunks - REDUCED to 100 characters for faster processing
@@ -713,18 +718,97 @@ async function generateFastSuggestions(
     }
 
     // FAST MODE: Minimal prompt, no heavy context for immediate response
-    const fastPrompt = `Expert FoodHub Sales Agent. Customer: "${transcript.slice(-200)}"
-Mood: ${moodAnalysis.mood}, Sentiment: ${moodAnalysis.sentiment}
+    const fastPrompt = `Expert FoodHub Sales Agent analyzing customer tone and knowledge level.
 
-Provide 2 immediate, actionable suggestions in JSON:
+CUSTOMER TRANSCRIPT: "${transcript.slice(-200)}"
+MOOD: ${moodAnalysis.mood}, SENTIMENT: ${moodAnalysis.sentiment}
+
+INSTRUCTIONS:
+1. READ the customer's EXACT WORDS and identify their specific question or statement
+2. Analyze their TONE (confident, hesitant, frustrated, curious, skeptical, etc.)
+3. Assess their KNOWLEDGE LEVEL (expert, informed, beginner, confused)
+4. Generate a CUE that DIRECTLY ANSWERS their specific question or addresses their exact response
+5. The CUE must be a DIRECT RESPONSE to what they said - not generic advice
+6. CHECK FOR COMPLETENESS: If agent gave partial information, suggest what they missed
+7. Provide a detailed message that specifically addresses their question with FoodHub solutions
+
+COMPLETENESS CHECK EXAMPLES:
+CUSTOMER: "Where do you operate?"
+AGENT: "We operate in UK and India"
+CUE: "also mention Egypt, Australia, New Zealand, America, South Africa, Canada, Mexico"
+
+CUSTOMER: "What POS systems do you have?"
+AGENT: "We have Android POS"
+CUE: "also mention Fusion EPOS system with 15-inch touchscreens"
+
+CUSTOMER: "What brands do you work with?"
+AGENT: "We work with Papa Johns"
+CUE: "also mention Subway, TGI Friday, Little Dessert Shop, Pepe's Piri Piri"
+
+CRITICAL: The CUE must DIRECTLY respond to the customer's actual question or statement.
+
+Examples of QUESTION-SPECIFIC CUES:
+CUSTOMER SAYS: "How much does this cost per month?"
+CUE: "state monthly pricing: $89 with no hidden fees"
+
+CUSTOMER SAYS: "What if your system crashes during dinner rush?"
+CUE: "explain offline mode and 99.9% uptime guarantee"
+
+CUSTOMER SAYS: "Do you integrate with Square POS?"
+CUE: "confirm Square integration and show setup process"
+
+CUSTOMER SAYS: "We tried another system and it was too complicated"
+CUE: "show 30-minute training process and user testimonials"
+
+CUSTOMER SAYS: "How long does setup take?"
+CUE: "explain 2-3 hour same-day implementation"
+
+CUSTOMER SAYS: "Can it handle 200 orders per hour?"
+CUE: "confirm capacity: handles 500+ orders/hour"
+
+The CUE should be SPECIFIC and ACTION-ORIENTED based on customer's actual words and questions:
+
+Examples based on REAL customer questions:
+CUSTOMER: "I'm not sure if this will work for my small restaurant..."
+CUE: "show small restaurant success stories" (reasoning: size concern needs proof)
+MESSAGE: "I understand your concern about restaurant size. Let me share how Tony's Pizza (15 tables) increased their order accuracy by 40% and reduced staff training time by 60% with FoodHub. Here are the exact numbers for restaurants your size."
+
+CUSTOMER: "Your competitor offers similar features at a lower price..."
+CUE: "compare total cost of ownership" (reasoning: price objection needs ROI analysis)
+MESSAGE: "You're right to compare total costs. While our upfront cost may be $200 more, FoodHub saves restaurants an average of $850/month through reduced errors, faster service, and lower staff turnover. Let me show you the 12-month cost comparison."
+
+CUSTOMER: "How long does implementation take? We can't afford downtime..."
+CUE: "explain zero-downtime setup process" (reasoning: implementation concern needs timeline)
+MESSAGE: "Great question - we implement during your slowest hours with zero downtime. The process takes 2-3 hours, we provide on-site training, and you'll be fully operational the same day. Here's our step-by-step implementation timeline."
+
+CUSTOMER: "Do you integrate with our existing POS system?"
+CUE: "confirm integration capabilities" (reasoning: technical question needs specific answer)
+MESSAGE: "Yes, we integrate with over 200 POS systems. What system are you currently using? I can show you exactly how the integration works and what data syncs automatically."
+
+CUSTOMER: "What happens if the system goes down during dinner rush?"
+CUE: "address uptime and backup systems" (reasoning: reliability concern needs reassurance)
+MESSAGE: "Excellent question - we have 99.9% uptime with automatic failover. If there's ever an issue, you have offline mode that syncs when reconnected, plus 24/7 phone support with 2-minute response time during peak hours."
+
+Provide in JSON:
 {
   "suggestions": [
     {
-      "text": "Quick actionable suggestion based on customer mood",
-      "type": "solution|question|offer",
+      "text": "reasoning-based cue here",
+      "type": "cue",
       "confidence": 0.8,
       "deliver_as": "immediate_response",
-      "offer_id": "fast_suggestion",
+      "offer_id": "fast_cue",
+      "customer_mood": "${moodAnalysis.mood}",
+      "tone_analysis": "customer's detected tone",
+      "knowledge_level": "assessed knowledge level",
+      "reasoning": "why this cue addresses their tone and knowledge"
+    },
+    {
+      "text": "Solution-focused detailed message that directly addresses their tone and knowledge level",
+      "type": "detailed_message", 
+      "confidence": 0.8,
+      "deliver_as": "immediate_response",
+      "offer_id": "fast_message",
       "customer_mood": "${moodAnalysis.mood}"
     }
   ]
@@ -738,22 +822,134 @@ Provide 2 immediate, actionable suggestions in JSON:
     }
 
     const response = await openaiClient.client.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
       messages: [
-        { role: "system", content: "Fast FoodHub Sales Assistant. Respond with JSON only." },
-        { role: "user", content: fastPrompt }
+        { role: "system", content: "Fast FoodHub Sales Assistant. You must respond with ONLY valid JSON. No explanations, no markdown, no additional text. Just pure JSON." },
+        { role: "user", content: fastPrompt + "\n\nRESPOND WITH ONLY THIS JSON FORMAT (complete the entire structure):\n{\"suggestions\": [{\"text\": \"[your cue here]\", \"type\": \"cue\", \"confidence\": 0.8, \"deliver_as\": \"immediate_response\", \"offer_id\": \"fast_cue\", \"customer_mood\": \"neutral\", \"tone_analysis\": \"[tone]\", \"knowledge_level\": \"[level]\", \"reasoning\": \"[reason]\"}, {\"text\": \"[your detailed message here]\", \"type\": \"detailed_message\", \"confidence\": 0.8, \"deliver_as\": \"immediate_response\", \"offer_id\": \"fast_message\", \"customer_mood\": \"neutral\", \"solution_focus\": \"[focus]\"}], \"customer_insights\": {\"emotional_state\": \"[state]\", \"conversation_pattern\": \"[pattern]\", \"recommended_approach\": \"[approach]\"}}" }
       ],
       temperature: 0.3,
-      max_tokens: 200 // Reduced for speed
+      max_tokens: 400 // Increased to prevent truncation
     });
 
     const content = response.choices?.[0]?.message?.content;
     if (content) {
-      // Simple JSON cleaning for fast mode
-      const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
+      console.log('Raw fast suggestion response:', content);
+      
+      // Comprehensive JSON cleaning for fast mode
+      let cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
+      
+      console.log('Content after markdown removal:', cleanContent);
+      
+      // Try to complete incomplete JSON first
+      if (cleanContent.includes('"suggestions"') && !cleanContent.endsWith('}')) {
+        // Count open and close braces to detect incomplete JSON
+        const openBraces = (cleanContent.match(/\{/g) || []).length;
+        const closeBraces = (cleanContent.match(/\}/g) || []).length;
+        const openBrackets = (cleanContent.match(/\[/g) || []).length;
+        const closeBrackets = (cleanContent.match(/\]/g) || []).length;
+        
+        console.log(`Brace count: open=${openBraces}, close=${closeBraces}, brackets: open=${openBrackets}, close=${closeBrackets}`);
+        
+        // Try to complete the JSON structure
+        if (openBraces > closeBraces || openBrackets > closeBrackets) {
+          // Find the last complete suggestion object
+          const lastCompleteMatch = cleanContent.match(/\{[^}]*"text"\s*:\s*"[^"]*"[^}]*\}/g);
+          if (lastCompleteMatch && lastCompleteMatch.length > 0) {
+            const completeSuggestions = lastCompleteMatch.slice(0, 2); // Take first 2 suggestions
+            const completedJson = `{"suggestions": [${completeSuggestions.join(', ')}]}`;
+            console.log('Attempting to complete JSON:', completedJson);
+            
+            try {
+              return JSON.parse(completedJson);
+            } catch (completionError) {
+              console.log('JSON completion failed, continuing with original logic');
+            }
+          }
+        }
+      }
+      
+      // Extract JSON object
       const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
+        let jsonStr = jsonMatch[0];
+        
+        // Fix common JSON issues
+        jsonStr = jsonStr
+          .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+          .replace(/([{,]\s*)(\w+):/g, '$1"$2":') // Add quotes to unquoted keys
+          .replace(/:\s*'([^']*)'/g, ': "$1"') // Replace single quotes with double quotes
+          .replace(/\n/g, ' ') // Remove newlines
+          .replace(/\s+/g, ' ') // Normalize whitespace
+          .replace(/,\s*}/g, '}') // Remove trailing comma before closing brace
+          .replace(/,\s*]/g, ']'); // Remove trailing comma before closing bracket
+        
+        console.log('Cleaned fast suggestion JSON:', jsonStr);
+        
+        try {
+          return JSON.parse(jsonStr);
+        } catch (parseError) {
+          console.error('JSON parse error after cleaning:', parseError);
+          console.error('Failed JSON string:', jsonStr);
+          
+          // Try to reconstruct from individual suggestion objects
+          const suggestionObjects = jsonStr.match(/\{[^{}]*"text"\s*:\s*"[^"]*"[^{}]*\}/g);
+          if (suggestionObjects && suggestionObjects.length > 0) {
+            try {
+              const reconstructedSuggestions = suggestionObjects.map(obj => {
+                // Clean each object individually
+                let cleanObj = obj
+                  .replace(/,(\s*})/g, '$1')
+                  .replace(/([{,]\s*)(\w+):/g, '$1"$2":')
+                  .replace(/:\s*'([^']*)'/g, ': "$1"');
+                
+                try {
+                  return JSON.parse(cleanObj);
+                } catch (objError) {
+                  // Extract key fields manually if JSON parse fails
+                  const textMatch = cleanObj.match(/"text"\s*:\s*"([^"]*)"/);
+                  const typeMatch = cleanObj.match(/"type"\s*:\s*"([^"]*)"/);
+                  
+                  if (textMatch) {
+                    return {
+                      text: textMatch[1],
+                      type: typeMatch ? typeMatch[1] : "cue",
+                      confidence: 0.7,
+                      deliver_as: "immediate_response",
+                      offer_id: "reconstructed_suggestion"
+                    };
+                  }
+                  return null;
+                }
+              }).filter(Boolean);
+              
+              if (reconstructedSuggestions.length > 0) {
+                console.log('Successfully reconstructed suggestions:', reconstructedSuggestions);
+                return { suggestions: reconstructedSuggestions };
+              }
+            } catch (reconstructionError) {
+              console.error('Failed to reconstruct suggestions:', reconstructionError);
+            }
+          }
+          
+          // Final text extraction fallback
+          const textMatches = content.match(/"text"\s*:\s*"([^"]*)"/g);
+          if (textMatches && textMatches.length > 0) {
+            const fallbackSuggestions = textMatches.slice(0, 2).map((match, index) => {
+              const textMatch = match.match(/"text"\s*:\s*"([^"]*)"/);
+              const text = textMatch ? textMatch[1] : "fallback text";
+              return {
+                text: text,
+                type: index === 0 ? "cue" : "detailed_message",
+                confidence: 0.6,
+                deliver_as: "immediate_response",
+                offer_id: `fallback_${index}`
+              };
+            });
+            
+            console.log('Using text extraction fallback:', fallbackSuggestions);
+            return { suggestions: fallbackSuggestions };
+          }
+        }
       }
     }
   } catch (error) {
@@ -786,7 +982,7 @@ async function generateEnhancedSalesSuggestions(
     const productInfo = foodhubService.getProductInfo(transcript);
 
     // Create enhanced prompt with customer conversation history
-    const prompt = `You are an expert FoodHub Sales Agent. Analyze the customer's current state and conversation history to provide CRISP, ACTIONABLE suggestions.
+    const prompt = `You are an expert FoodHub Sales Agent. Analyze the customer's current state and conversation history to provide SHORT CUES for the agent.
 
 CURRENT CUSTOMER TRANSCRIPT: "${transcript}"
 
@@ -804,24 +1000,96 @@ ${customerHistory.map((call, i) =>
 FOODHUB CONTEXT: ${relevantContext}
 
 INSTRUCTIONS:
-1. Consider the customer's CURRENT emotional state and past conversation patterns
-2. Provide 1-2 CRISP, specific suggestions that directly address their current needs
-3. Each suggestion should be actionable and specific to their mood
-4. Reference their conversation history to show understanding
-5. Be empathetic to their emotional state
-6. Include the customer's current mood in each suggestion
+1. READ the customer's EXACT WORDS from current transcript and conversation history
+2. IDENTIFY their specific question, concern, or statement
+3. ANALYZE their TONE (confident, hesitant, frustrated, curious, skeptical, rushed, etc.)
+4. ASSESS their KNOWLEDGE LEVEL (expert, informed, beginner, confused)
+5. Generate a CUE that DIRECTLY RESPONDS to their specific question or statement
+6. The CUE must be a DIRECT ANSWER to what they asked - not generic sales advice
+7. CHECK FOR COMPLETENESS: If agent gave partial information, suggest what they missed from FoodHub database
+8. Provide a detailed message that specifically addresses their question with FoodHub data
+
+COMPLETENESS CHECK EXAMPLES:
+CUSTOMER: "Where do you operate?"
+AGENT: "We operate in UK and India"
+CUE: "also mention Egypt, Australia, New Zealand, America, South Africa, Canada, Mexico"
+
+CUSTOMER: "What are your key features?"
+AGENT: "We have online ordering"
+CUE: "also mention POS systems, custom apps, kiosks, delivery management, analytics"
+
+CUSTOMER: "Who are your clients?"
+AGENT: "We work with Papa Johns and Subway"
+CUE: "also mention TGI Friday, Little Dessert Shop, Pepe's Piri Piri, Craving Kebabs"
+
+CRITICAL: The CUE must be a DIRECT RESPONSE to the customer's actual question or statement.
+
+Examples of QUESTION-RESPONSIVE CUES:
+CUSTOMER ASKS: "What's your monthly cost and are there setup fees?"
+CUE: "quote pricing: $89/month, zero setup fees"
+
+CUSTOMER SAYS: "We need something that works with our current iPad POS"
+CUE: "confirm iPad POS integration capabilities"
+
+CUSTOMER ASKS: "How do I know this won't slow down during busy times?"
+CUE: "share peak performance data and client examples"
+
+CUSTOMER SAYS: "Our staff is not tech-savvy, will they struggle?"
+CUE: "demonstrate simple 3-tap order process"
+
+CUSTOMER ASKS: "What happens if we're not satisfied after a month?"
+CUE: "explain 30-day money-back guarantee policy"
+
+CUSTOMER SAYS: "Your competitor quoted us $50 less per month"
+CUE: "show ROI comparison: why $50 more saves $300/month"
+
+REASONING-BASED CUE FRAMEWORK:
+- Hesitant + Low Knowledge → "simplify key benefits"
+- Skeptical + High Knowledge → "prove ROI with data"
+- Curious + Medium Knowledge → "demonstrate specific features"
+- Frustrated + Any Knowledge → "acknowledge and resolve"
+- Rushed + Any Knowledge → "prioritize quick wins"
+- Confused + Low Knowledge → "clarify step-by-step"
+
+Examples with SPECIFIC ACTION-ORIENTED CUES:
+
+CUSTOMER HISTORY: Multiple calls, keeps asking about costs, sounds uncertain
+CURRENT QUOTE: "I'm still worried about the monthly fees adding up..."
+CUE: "break down monthly ROI calculation" (reasoning: recurring cost anxiety needs specific numbers)
+MESSAGE: "I understand your concern about monthly costs. Let me break this down: FoodHub costs $89/month but saves you $340/month on average through reduced food waste, faster table turns, and fewer order mistakes. That's a net gain of $251/month. Here's how we calculated this for restaurants like yours."
+
+CUSTOMER HISTORY: First call, asking technical questions, sounds knowledgeable
+CURRENT QUOTE: "What's your API rate limit and how do you handle peak traffic?"
+CUE: "provide technical specifications" (reasoning: technical question needs detailed specs)
+MESSAGE: "Great technical question - our API handles 10,000 requests/minute with auto-scaling, 99.9% uptime SLA, and sub-100ms response times. We use AWS infrastructure with automatic failover. Would you like to see our technical documentation and integration examples?"
+
+CUSTOMER HISTORY: Owns 3 restaurants, concerned about staff training
+CURRENT QUOTE: "My staff struggles with new technology, how easy is this to learn?"
+CUE: "demonstrate simple staff training" (reasoning: training concern needs ease-of-use proof)
+MESSAGE: "Perfect question for a multi-location owner. Our interface is so intuitive that 90% of staff are fully trained in under 30 minutes. Let me show you the 3-tap order process and how we've helped other multi-location restaurants like yours reduce training time by 75%."
 
 OUTPUT FORMAT (JSON only):
 {
   "suggestions": [
     {
-      "text": "Specific, actionable suggestion based on their current mood and history",
-      "type": "solution|question|offer|follow_up",
+      "text": "reasoning-based cue here",
+      "type": "cue",
       "confidence": 0.85,
-      "deliver_as": "immediate_response|follow_up_question|next_step",
-      "offer_id": "specific_offer_id",
+      "deliver_as": "immediate_response",
+      "offer_id": "enhanced_cue",
       "customer_mood": "${moodAnalysis.mood}",
-      "reasoning": "Why this suggestion fits their current emotional state and history"
+      "tone_analysis": "detected customer tone (hesitant/skeptical/curious/frustrated/etc.)",
+      "knowledge_level": "assessed knowledge level (expert/informed/beginner/confused)",
+      "reasoning": "Why this cue addresses their specific tone and knowledge gap"
+    },
+    {
+      "text": "Solution-focused detailed message with specific FoodHub solutions that address their tone and knowledge level",
+      "type": "detailed_message",
+      "confidence": 0.85,
+      "deliver_as": "immediate_response",
+      "offer_id": "enhanced_message",
+      "customer_mood": "${moodAnalysis.mood}",
+      "solution_focus": "specific FoodHub solution or approach being recommended"
     }
   ],
   "customer_insights": {
@@ -848,7 +1116,7 @@ OUTPUT FORMAT (JSON only):
     }
 
     const response = await openaiClient.client.chat.completions.create({
-      model: 'gpt-4o-mini', // Force GPT-4o-mini for cost optimization
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini', // Force GPT-4o-mini for cost optimization
       messages: [
         {
           role: "system",
@@ -959,22 +1227,162 @@ OUTPUT FORMAT (JSON only):
 }
 
 function generateMockSalesSuggestions(transcript: string, moodAnalysis: any): any {
+  // Analyze transcript for common questions/statements and generate responsive cues
+  const transcriptLower = transcript.toLowerCase();
+  
+  // Check for completeness - if agent mentioned partial information
+  if (transcriptLower.includes('operate') && (transcriptLower.includes('uk') || transcriptLower.includes('india'))) {
+    return {
+      suggestions: [
+        {
+          text: "also mention Egypt, Australia, New Zealand, America, South Africa, Canada, Mexico",
+          type: "cue",
+          confidence: 0.9,
+          deliver_as: "immediate_response", 
+          offer_id: "completeness_cue",
+          customer_mood: moodAnalysis.mood,
+          tone_analysis: "seeking comprehensive information",
+          knowledge_level: "wants complete picture",
+          reasoning: "Agent gave partial location info - suggest missing countries from database"
+        },
+        {
+          text: "We actually operate globally across 9 countries: UK, India, Egypt, Australia, New Zealand, America, South Africa, Canada, and Mexico. This gives us 24/7 support coverage and deep local market understanding in each region.",
+          type: "detailed_message",
+          confidence: 0.9,
+          deliver_as: "immediate_response",
+          offer_id: "completeness_message", 
+          customer_mood: moodAnalysis.mood,
+          solution_focus: "comprehensive global presence demonstration"
+        }
+      ],
+      customer_insights: {
+        emotional_state: "information-seeking",
+        conversation_pattern: "Completeness check - agent gave partial information",
+        recommended_approach: "Provide complete information to build confidence"
+      }
+    };
+  }
+  
+  // Check for specific questions/concerns in transcript
+  if (transcriptLower.includes('cost') || transcriptLower.includes('price') || transcriptLower.includes('expensive')) {
   return {
     suggestions: [
       {
-        text: "I understand you're looking for a solution. Let me show you how FoodHub can help your restaurant grow.",
-        type: "solution",
+          text: "quote pricing: $89/month with ROI breakdown",
+          type: "cue",
+          confidence: 0.8,
+          deliver_as: "immediate_response",
+          offer_id: "pricing_cue",
+          customer_mood: moodAnalysis.mood,
+          tone_analysis: "price-focused inquiry",
+          knowledge_level: "cost-conscious buyer",
+          reasoning: "Customer asked about pricing - provide direct cost and value information"
+        },
+        {
+          text: "FoodHub costs $89/month with no hidden fees, but saves restaurants an average of $340/month through reduced errors, faster service, and better inventory management. Let me show you the exact ROI calculation for your restaurant size.",
+          type: "detailed_message",
+          confidence: 0.8,
+          deliver_as: "immediate_response",
+          offer_id: "pricing_message",
+          customer_mood: moodAnalysis.mood,
+          solution_focus: "transparent pricing with ROI justification"
+        }
+      ],
+      customer_insights: {
+        emotional_state: "price-focused",
+        conversation_pattern: "Cost-conscious inquiry detected",
+        recommended_approach: "Lead with value and ROI, not just price"
+      }
+    };
+  }
+  
+  if (transcriptLower.includes('integration') || transcriptLower.includes('integrate') || transcriptLower.includes('pos')) {
+    return {
+      suggestions: [
+        {
+          text: "confirm POS integration and show setup process",
+          type: "cue", 
+          confidence: 0.8,
+          deliver_as: "immediate_response",
+          offer_id: "integration_cue",
+          customer_mood: moodAnalysis.mood,
+          tone_analysis: "technical integration inquiry",
+          knowledge_level: "has existing systems",
+          reasoning: "Customer asking about integration - confirm compatibility and show process"
+        },
+        {
+          text: "Yes, FoodHub integrates with over 200 POS systems including Square, Toast, Clover, and most major brands. What system are you currently using? I can show you exactly how the integration works and what data syncs automatically.",
+          type: "detailed_message",
+          confidence: 0.8,
+          deliver_as: "immediate_response", 
+          offer_id: "integration_message",
+          customer_mood: moodAnalysis.mood,
+          solution_focus: "comprehensive integration capabilities"
+        }
+      ],
+      customer_insights: {
+        emotional_state: "technically concerned",
+        conversation_pattern: "Integration compatibility inquiry",
+        recommended_approach: "Provide technical details and compatibility confirmation"
+      }
+    };
+  }
+
+  // Default mood-based suggestions for general conversations
+  const mockSuggestions = {
+    positive: {
+      cue: "offer immediate demo scheduling",
+      message: "Customer shows strong interest. Say: 'I can see you're interested! Would you like me to schedule a 15-minute personalized demo for tomorrow to show exactly how FoodHub will work in your restaurant?'",
+      tone: "engaged and ready to move forward",
+      knowledge: "interested prospect",
+      solution: "immediate demo scheduling"
+    },
+    neutral: {
+      cue: "ask about their biggest restaurant challenge", 
+      message: "Ask directly: 'What's your biggest challenge right now - is it order accuracy, staff efficiency, inventory management, or customer wait times?' Then show exactly how FoodHub solves that specific problem.",
+      tone: "neutral and exploratory", 
+      knowledge: "information gathering mode",
+      solution: "needs assessment and targeted solution"
+    },
+    negative: {
+      cue: "ask what specifically concerns them",
+      message: "Ask directly: 'What specifically concerns you about restaurant technology?' Then address their exact worry with proof, testimonials, and guarantees.",
+      tone: "skeptical or concerned",
+      knowledge: "may have past bad experiences",
+      solution: "concern identification and targeted reassurance"
+    }
+  };
+  
+  const suggestion = mockSuggestions[moodAnalysis.mood as keyof typeof mockSuggestions] || mockSuggestions.neutral;
+  
+  return {
+    suggestions: [
+      {
+        text: suggestion.cue,
+        type: "cue",
         confidence: 0.7,
         deliver_as: "immediate_response",
-        offer_id: "general_solution",
+        offer_id: "mock_cue",
         customer_mood: moodAnalysis.mood,
-        reasoning: "Generic response for fallback scenario"
+        tone_analysis: suggestion.tone,
+        knowledge_level: suggestion.knowledge,
+        reasoning: `Reasoning-based mock cue for ${moodAnalysis.mood} customer tone and knowledge level`
+      },
+      {
+        text: suggestion.message,
+        type: "detailed_message",
+        confidence: 0.7,
+        deliver_as: "immediate_response",
+        offer_id: "mock_message",
+        customer_mood: moodAnalysis.mood,
+        solution_focus: suggestion.solution,
+        reasoning: `Solution-focused approach for ${moodAnalysis.mood} mood`
       }
     ],
     customer_insights: {
       emotional_state: moodAnalysis.mood,
-      conversation_pattern: "No history available",
-      recommended_approach: "Standard approach"
+      conversation_pattern: "No history available - using mood-based reasoning",
+      recommended_approach: `Tone-aware approach for ${suggestion.tone} customer`
     }
   };
 }

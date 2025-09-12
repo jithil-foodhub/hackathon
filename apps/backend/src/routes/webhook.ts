@@ -303,36 +303,51 @@ async function generateSalesSuggestions(
 }
 
 function generateMockSalesSuggestions(transcript: string, moodAnalysis: MoodAnalysis): any {
-  const suggestions = [];
+  // Generate mock short cues based on mood
+  const mockCues = {
+    positive: ["suggest demo", "ask about timeline", "mention features"],
+    neutral: ["ask about needs", "check budget", "offer information"],
+    negative: ["address concerns", "ask about issues", "offer support"]
+  };
   
-  if (moodAnalysis.mood === 'positive') {
-    suggestions.push({
-      text: `Great to hear your enthusiasm! Based on your interest, I'd recommend our Fusion EPOS system which offers everything you need for restaurant management. Would you like to schedule a demo to see it in action?`,
-      offer_id: 'fusion-epos-demo',
-      type: 'product_recommendation',
-      confidence: 0.9,
-      deliver_as: 'say',
-      reasoning: 'Customer shows positive mood and interest'
-    });
-  } else if (moodAnalysis.mood === 'negative') {
-    suggestions.push({
-      text: `I understand your concerns. Let me address them directly and show you how our solutions can solve the specific challenges you're facing. What's the main issue you'd like to resolve?`,
-      offer_id: 'empathy-response',
-      type: 'empathy_response',
-      confidence: 0.8,
-      deliver_as: 'say',
-      reasoning: 'Customer shows negative mood, needs empathy and problem-solving approach'
-    });
-  } else {
-    suggestions.push({
-      text: `I'd be happy to help you explore our restaurant technology solutions. Let me understand your specific needs better - what type of restaurant are you running?`,
-      offer_id: 'solution_consultation',
-      type: 'solution_consultation',
+  const cues = mockCues[moodAnalysis.mood as keyof typeof mockCues] || mockCues.neutral;
+  
+  // Generate mock cue + detailed message based on mood
+  const mockSuggestions = {
+    positive: {
+      cue: "suggest demo",
+      message: "Customer seems engaged and interested. Offer to schedule a live demo to show FoodHub's key features that match their restaurant needs."
+    },
+    neutral: {
+      cue: "ask about needs", 
+      message: "Customer is in discovery mode. Ask specific questions about their current restaurant challenges to understand how FoodHub can help."
+    },
+    negative: {
+      cue: "address concerns",
+      message: "Customer has reservations or concerns. Listen actively to their issues and explain how FoodHub specifically addresses those pain points."
+    }
+  };
+  
+  const suggestion = mockSuggestions[moodAnalysis.mood as keyof typeof mockSuggestions] || mockSuggestions.neutral;
+  
+  const suggestions = [
+    {
+      text: suggestion.cue,
+      offer_id: "mock_cue",
+      type: "cue",
       confidence: 0.7,
       deliver_as: 'say',
-      reasoning: 'Neutral mood, needs more information gathering'
-    });
-  }
+      reasoning: `Mock cue for ${moodAnalysis.mood} mood`
+    },
+    {
+      text: suggestion.message,
+      offer_id: "mock_message", 
+      type: "detailed_message",
+      confidence: 0.7,
+      deliver_as: 'say',
+      reasoning: `Mock detailed message for ${moodAnalysis.mood} mood`
+    }
+  ];
 
   return {
     suggestions,
