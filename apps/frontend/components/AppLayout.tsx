@@ -38,6 +38,8 @@ export function AppLayout({ children, currentScreen = "home", onScreenChange }: 
       // Default navigation behavior
       if (screen === "home") {
         window.location.href = "/dashboard";
+      } else if (screen === "overview") {
+        window.location.href = "/overview";
       } else if (screen === "clients") {
         window.location.href = "/clients";
       } else if (screen === "analytics") {

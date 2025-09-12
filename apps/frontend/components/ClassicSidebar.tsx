@@ -7,7 +7,8 @@ import {
   BarChart3,
   ChevronRight,
   Plus,
-  Building2
+  Building2,
+  Grid3X3
 } from 'lucide-react';
 
 interface ClassicSidebarProps {
@@ -28,7 +29,13 @@ export function ClassicSidebar({
       id: 'home',
       label: 'Dashboard',
       icon: Home,
-      description: 'Overview and analytics'
+      description: 'Main dashboard'
+    },
+    {
+      id: 'overview',
+      label: 'Overview',
+      icon: Grid3X3,
+      description: 'Comprehensive insights'
     },
     {
       id: 'clients',
