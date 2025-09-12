@@ -3,16 +3,41 @@
 import { useState, useEffect, useRef } from 'react';
 import { WebSocketClient } from '@/hooks/useWebSocket';
 import { SuggestionCard } from './SuggestionCard';
+import { CompetitorAnalysis } from './CompetitorAnalysis';
 import { TranscriptPane } from './TranscriptPane';
 import { ConnectionStatus } from './ConnectionStatus';
 
 interface Suggestion {
   text: string;
   offer_id: string;
-  type: 'upsell' | 'cross-sell' | 'retention' | 'new-offer' | 'product_recommendation' | 'solution_consultation' | 'business_growth' | 'technical_support' | 'pricing_inquiry' | 'follow_up' | 'empathy_response';
+  type: 'upsell' | 'cross-sell' | 'retention' | 'new-offer' | 'product_recommendation' | 'solution_consultation' | 'business_growth' | 'technical_support' | 'pricing_inquiry' | 'follow_up' | 'empathy_response' | 'solution' | 'question' | 'offer' | 'competitor_response';
   confidence: number;
-  deliver_as: 'say' | 'show' | 'email';
+  deliver_as: 'say' | 'show' | 'email' | 'immediate_response' | 'follow_up_question' | 'next_step';
   reasoning?: string;
+  core_highlight?: string;
+  priority?: 'high' | 'medium' | 'low';
+  competitor_analysis?: {
+    competitor_name?: string;
+    foodhub_advantage: string;
+    competitor_weakness: string;
+  };
+}
+
+interface CompetitorContainer {
+  competitor_name: string;
+  has: string[];
+  does_not_have: string[];
+  why_choose_foodhub: string[];
+}
+
+interface FastLiveSuggestions {
+  type: 'fast_live_suggestions';
+  callSid: string;
+  suggestions: Suggestion[];
+  competitor_container?: CompetitorContainer;
+  processing_time_ms: number;
+  timestamp: string;
+  priority: 'immediate';
 }
 
 interface WebSocketMessage {
@@ -119,6 +144,9 @@ export function AgentDashboard({ agentId }: AgentDashboardProps) {
   const [liveTranscript, setLiveTranscript] = useState<string>('');
   const [isLiveStreaming, setIsLiveStreaming] = useState<boolean>(false);
   const [liveSuggestions, setLiveSuggestions] = useState<Suggestion[]>([]);
+  const [fastLiveSuggestions, setFastLiveSuggestions] = useState<Suggestion[]>([]);
+  const [competitorContainer, setCompetitorContainer] = useState<CompetitorContainer | null>(null);
+  const [processingTime, setProcessingTime] = useState<number>(0);
   const wsRef = useRef<WebSocketClient | null>(null);
 
   useEffect(() => {
@@ -155,12 +183,25 @@ export function AgentDashboard({ agentId }: AgentDashboardProps) {
         console.log(`📝 Live transcript [${transcriptChunk.speaker}]: "${transcriptChunk.transcript}" (Confidence: ${transcriptChunk.confidence})`);
         setLiveTranscript(transcriptChunk.fullTranscript);
         setTranscript(transcriptChunk.fullTranscript);
+      } else if (message.type === 'fast_live_suggestions') {
+        const fastSuggestions = message as FastLiveSuggestions;
+        console.log(`⚡ Fast live suggestions received: ${fastSuggestions.processing_time_ms}ms`);
+        setFastLiveSuggestions(fastSuggestions.suggestions);
+        setCompetitorContainer(fastSuggestions.competitor_container || null);
+        setProcessingTime(fastSuggestions.processing_time_ms);
+        setLastUpdate(fastSuggestions.timestamp);
+        
+        // Show fast suggestions immediately
+        setSuggestions(fastSuggestions.suggestions);
       } else if (message.type === 'live_analysis') {
         const liveAnalysis = message as LiveAnalysis;
         console.log(`🤖 Live analysis: ${liveAnalysis.moodAnalysis.mood} mood`);
         setMoodAnalysis(liveAnalysis.moodAnalysis);
         setLiveSuggestions(liveAnalysis.suggestions);
-        setSuggestions(liveAnalysis.suggestions);
+        // Don't override fast suggestions with slower analysis
+        if (fastLiveSuggestions.length === 0) {
+          setSuggestions(liveAnalysis.suggestions);
+        }
         setLastUpdate(liveAnalysis.timestamp);
       } else if (message.type === 'call_transcript_processed') {
         const transcriptMsg = message as TranscriptProcessed;
@@ -393,10 +434,24 @@ export function AgentDashboard({ agentId }: AgentDashboardProps) {
             </div>
           )}
 
-          {lastUpdate && (
-            <p className="text-xs text-gray-500">
-              Last update: {new Date(lastUpdate).toLocaleTimeString()}
-            </p>
+          {/* Processing Time Indicator */}
+          {processingTime > 0 && (
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <span>Last update: {new Date(lastUpdate).toLocaleTimeString()}</span>
+              <span className="text-green-600 font-medium">
+                ⚡ Generated in {processingTime}ms
+              </span>
+            </div>
+          )}
+
+          {/* Competitor Analysis Container */}
+          {competitorContainer && (
+            <div className="mt-6">
+              <CompetitorAnalysis 
+                competitorData={competitorContainer}
+                className="border-2 border-blue-300 shadow-lg"
+              />
+            </div>
           )}
         </div>
 
