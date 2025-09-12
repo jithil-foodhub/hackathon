@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Users, Phone, Search, Plus, Calendar, MessageSquare, Trash2, AlertTriangle } from "lucide-react";
+import { Users, Phone, Search, Plus, Calendar, MessageSquare, Trash2, AlertTriangle, Building2, MapPin, Target, Zap } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
+import { EnhancedClientForm } from "./enhanced-form";
 
 interface Client {
   _id: string;
@@ -14,6 +15,49 @@ interface Client {
   lastCallDate?: string;
   mood?: string;
   sentiment?: number;
+  // Enhanced fields
+  name?: string;
+  email?: string;
+  businessInfo?: {
+    businessName?: string;
+    businessType?: string;
+    cuisineType?: string;
+    establishmentSize?: string;
+    yearsInBusiness?: number;
+    monthlyRevenue?: string;
+  };
+  location?: {
+    country?: string;
+    region?: string;
+    city?: string;
+  };
+  currentSolutions?: {
+    hasExistingPOS?: boolean;
+    posProvider?: string;
+    hasKiosk?: boolean;
+    hasNativeApp?: boolean;
+    hasWebsite?: boolean;
+    hasDeliveryIntegration?: boolean;
+    hasOnlineOrdering?: boolean;
+  };
+  requirements?: {
+    primaryGoals?: string[];
+    painPoints?: string[];
+    budgetRange?: string;
+    timeline?: string;
+    preferredContactMethod?: string;
+  };
+  competitiveInfo?: {
+    isReceivingCompetitorCalls?: boolean;
+    competitorNames?: string[];
+  };
+  leadQuality?: {
+    leadScore?: number;
+    leadSource?: string;
+    isHotLead?: boolean;
+    engagementLevel?: string;
+    conversionProbability?: string;
+  };
 }
 
 export default function ClientsPage() {
@@ -22,14 +66,60 @@ export default function ClientsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [newClient, setNewClient] = useState({
     phoneNumber: "",
     status: "prospect",
-    notes: ""
+    notes: "",
+    name: "",
+    email: "",
+    // Enhanced fields
+    businessInfo: {
+      businessName: "",
+      businessType: "",
+      cuisineType: "",
+      establishmentSize: "",
+      yearsInBusiness: 0,
+      monthlyRevenue: ""
+    },
+    location: {
+      country: "",
+      region: "",
+      city: ""
+    },
+    currentSolutions: {
+      hasExistingPOS: false,
+      posProvider: "",
+      hasKiosk: false,
+      hasNativeApp: false,
+      hasWebsite: false,
+      hasDeliveryIntegration: false,
+      hasOnlineOrdering: false
+    },
+    requirements: {
+      primaryGoals: [] as string[],
+      painPoints: [] as string[],
+      budgetRange: "",
+      timeline: "",
+      preferredContactMethod: ""
+    },
+    competitiveInfo: {
+      isReceivingCompetitorCalls: false,
+      competitorNames: [] as string[]
+    },
+    leadQuality: {
+      leadScore: 5,
+      leadSource: "",
+      isHotLead: false,
+      engagementLevel: "",
+      conversionProbability: ""
+    }
   });
   const [showClearModal, setShowClearModal] = useState(false);
   const [clientToClear, setClientToClear] = useState<Client | null>(null);
   const [isClearing, setIsClearing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'basic' | 'business' | 'solutions' | 'requirements' | 'competitive' | 'quality'>('basic');
 
   useEffect(() => {
     fetchClients();
@@ -62,7 +152,54 @@ export default function ClientsPage() {
       const data = await response.json();
       if (data.success) {
         setClients([...clients, data.data]);
-        setNewClient({ phoneNumber: "", status: "prospect", notes: "" });
+        setNewClient({
+          phoneNumber: "",
+          status: "prospect",
+          notes: "",
+          name: "",
+          email: "",
+          businessInfo: {
+            businessName: "",
+            businessType: "",
+            cuisineType: "",
+            establishmentSize: "",
+            yearsInBusiness: 0,
+            monthlyRevenue: ""
+          },
+          location: {
+            country: "",
+            region: "",
+            city: ""
+          },
+          currentSolutions: {
+            hasExistingPOS: false,
+            posProvider: "",
+            hasKiosk: false,
+            hasNativeApp: false,
+            hasWebsite: false,
+            hasDeliveryIntegration: false,
+            hasOnlineOrdering: false
+          },
+          requirements: {
+            primaryGoals: [],
+            painPoints: [],
+            budgetRange: "",
+            timeline: "",
+            preferredContactMethod: ""
+          },
+          competitiveInfo: {
+            isReceivingCompetitorCalls: false,
+            competitorNames: []
+          },
+          leadQuality: {
+            leadScore: 5,
+            leadSource: "",
+            isHotLead: false,
+            engagementLevel: "",
+            conversionProbability: ""
+          }
+        });
+        setActiveTab('basic');
         setShowAddModal(false);
       }
     } catch (error) {
@@ -70,8 +207,128 @@ export default function ClientsPage() {
     }
   };
 
+  const handleArrayInput = (field: string, value: string, action: 'add' | 'remove') => {
+    const [parent, child] = field.split('.');
+    setNewClient(prev => {
+      const parentObj = prev[parent as keyof typeof prev] as any;
+      return {
+        ...prev,
+        [parent]: {
+          ...parentObj,
+          [child]: action === 'add' 
+            ? [...(parentObj[child] || []), value]
+            : (parentObj[child] || []).filter((item: string) => item !== value)
+        }
+      };
+    });
+  };
+
+  const handleEditArrayInput = (field: string, value: string, action: 'add' | 'remove') => {
+    const [parent, child] = field.split('.');
+    setEditingClient(prev => {
+      if (!prev) return prev;
+      const parentObj = prev[parent as keyof typeof prev] as any;
+      return {
+        ...prev,
+        [parent]: {
+          ...parentObj,
+          [child]: action === 'add' 
+            ? [...(parentObj[child] || []), value]
+            : (parentObj[child] || []).filter((item: string) => item !== value)
+        }
+      };
+    });
+  };
+
   const handleClientClick = (client: Client) => {
     router.push(`/clients/${client._id}`);
+  };
+
+  const handleEditClient = (client: Client) => {
+    setEditingClient({
+      ...client,
+      // Ensure all enhanced fields are present with defaults
+      businessInfo: {
+        businessName: "",
+        businessType: "",
+        cuisineType: "",
+        establishmentSize: "",
+        yearsInBusiness: 0,
+        monthlyRevenue: "",
+        ...client.businessInfo
+      },
+      location: {
+        country: "",
+        region: "",
+        city: "",
+        ...client.location
+      },
+      currentSolutions: {
+        hasExistingPOS: false,
+        posProvider: "",
+        hasKiosk: false,
+        hasNativeApp: false,
+        hasWebsite: false,
+        hasDeliveryIntegration: false,
+        hasOnlineOrdering: false,
+        ...client.currentSolutions
+      },
+      requirements: {
+        primaryGoals: [],
+        painPoints: [],
+        budgetRange: "",
+        timeline: "",
+        preferredContactMethod: "",
+        ...client.requirements
+      },
+      competitiveInfo: {
+        isReceivingCompetitorCalls: false,
+        competitorNames: [],
+        ...client.competitiveInfo
+      },
+      leadQuality: {
+        leadScore: 5,
+        leadSource: "",
+        isHotLead: false,
+        engagementLevel: "",
+        conversionProbability: "",
+        ...client.leadQuality
+      }
+    });
+    setShowEditModal(true);
+  };
+
+  const handleUpdateClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingClient) return;
+
+    try {
+      console.log('Updating client with data:', editingClient);
+      const response = await fetch(`/api/clients/${editingClient._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingClient)
+      });
+      
+      const data = await response.json();
+      console.log('Update response:', data);
+      
+      if (data.success) {
+        setClients(clients.map(client => 
+          client._id === editingClient._id ? editingClient : client
+        ));
+        setShowEditModal(false);
+        setEditingClient(null);
+        setActiveTab('basic');
+        console.log('Client updated successfully');
+      } else {
+        console.error('Update failed:', data.error);
+        alert('Failed to update client: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error updating client:', error);
+      alert('Error updating client: ' + error);
+    }
   };
 
   const handleClearData = (client: Client, e: React.MouseEvent) => {
@@ -184,8 +441,7 @@ export default function ClientsPage() {
           {filteredClients.map((client) => (
             <div
               key={client._id}
-              onClick={() => handleClientClick(client)}
-              className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200 hover:shadow-xl transition-all cursor-pointer hover:scale-105"
+              className="bg-white rounded-2xl shadow-lg p-6 border border-slate-200 hover:shadow-xl transition-all"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center space-x-3">
@@ -245,6 +501,16 @@ export default function ClientsPage() {
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
+                    onClick={(e) => handleEditClient(client)}
+                    className="flex items-center px-2 py-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
+                    title="Edit client information"
+                  >
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    <span className="text-sm font-medium">Edit</span>
+                  </button>
+                  <button
                     onClick={(e) => handleClearData(client, e)}
                     className="flex items-center px-2 py-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
                     title="Clear all client data"
@@ -252,10 +518,13 @@ export default function ClientsPage() {
                     <Trash2 className="w-4 h-4 mr-1" />
                     <span className="text-sm font-medium">Clear Data</span>
                   </button>
-                  <div className="flex items-center text-blue-600 hover:text-blue-800">
+                  <button
+                    onClick={() => handleClientClick(client)}
+                    className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
+                  >
                     <MessageSquare className="w-4 h-4 mr-1" />
                     <span className="text-sm font-medium">View Details</span>
-                  </div>
+                  </button>
                 </div>
               </div>
             </div>
@@ -279,72 +548,31 @@ export default function ClientsPage() {
           </div>
         )}
 
-        {/* Add Client Modal */}
+        {/* Enhanced Add Client Modal */}
         {showAddModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4">
-              <h2 className="text-xl font-semibold text-slate-900 mb-4">Add New Client</h2>
-              <form onSubmit={handleAddClient}>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Phone Number
-                    </label>
-                    <input
-                      type="tel"
-                      value={newClient.phoneNumber}
-                      onChange={(e) => setNewClient({...newClient, phoneNumber: e.target.value})}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="+1234567890"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Status
-                    </label>
-                    <select
-                      value={newClient.status}
-                      onChange={(e) => setNewClient({...newClient, status: e.target.value})}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="prospect">Prospect</option>
-                      <option value="lead">Lead</option>
-                      <option value="customer">Customer</option>
-                      <option value="inactive">Inactive</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Notes
-                    </label>
-                    <textarea
-                      value={newClient.notes}
-                      onChange={(e) => setNewClient({...newClient, notes: e.target.value})}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      rows={3}
-                      placeholder="Additional notes about this client..."
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center justify-end space-x-3 mt-6">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddModal(false)}
-                    className="px-4 py-2 text-slate-600 hover:text-slate-800"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Add Client
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
+          <EnhancedClientForm
+            newClient={newClient}
+            setNewClient={setNewClient}
+            handleAddClient={handleAddClient}
+            setShowAddModal={setShowAddModal}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            handleArrayInput={handleArrayInput}
+          />
+        )}
+
+        {/* Enhanced Edit Client Modal */}
+        {showEditModal && editingClient && (
+          <EnhancedClientForm
+            newClient={editingClient}
+            setNewClient={setEditingClient}
+            handleAddClient={handleUpdateClient}
+            setShowAddModal={setShowEditModal}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            handleArrayInput={handleEditArrayInput}
+            isEditMode={true}
+          />
         )}
 
         {/* Clear Data Confirmation Modal */}
