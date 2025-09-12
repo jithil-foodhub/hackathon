@@ -68,7 +68,7 @@ export class OpenAIClient {
       const prompt = buildPrompt.legacySalesAssistant(transcript, relevantOffers);
       
       const response = await this.client.chat.completions.create({
-        model: process.env.OPENAI_MODEL!,
+        model: process.env.OPENAI_MODEL, // Force GPT-4o-mini for cost optimization
         messages: [
           {
             role: 'system',

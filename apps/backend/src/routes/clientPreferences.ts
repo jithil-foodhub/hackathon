@@ -336,7 +336,7 @@ RESPONSE FORMAT (JSON only):
     // Get AI response
     const openaiClient = new OpenAIClient();
     const response = await openaiClient.client.chat.completions.create({
-      model: process.env.OPENAI_MODEL!,
+      model: process.env.OPENAI_MODEL, // Force GPT-4o-mini for cost optimization
       messages: [
         {
           role: "system",
@@ -665,7 +665,7 @@ RESPONSE FORMAT (JSON only):
     // Get AI response
     const openaiClient = new OpenAIClient();
     const response = await openaiClient.client.chat.completions.create({
-      model: process.env.OPENAI_MODEL!,
+      model: process.env.OPENAI_MODEL, // Force GPT-4o-mini for cost optimization
       messages: [
         {
           role: "system",

@@ -44,7 +44,7 @@ export class PreferenceAnalysisService {
 
   static async analyzeClientPreferences(clientId: string): Promise<ClientPreferences> {
     await PreferenceAnalysisService.loadFoodHubContext();
-    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    const model = 'gpt-4o-mini'; // Force GPT-4o-mini for cost optimization
 
     // Get all call records for the client
     const callRecords = await CallRecord.find({
@@ -148,7 +148,7 @@ export class PreferenceAnalysisService {
     callToAction: string;
   }> {
     await PreferenceAnalysisService.loadFoodHubContext();
-    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    const model = 'gpt-4o-mini'; // Force GPT-4o-mini for cost optimization
 
     const prompt = buildPrompt.marketingContent(preferences);
 

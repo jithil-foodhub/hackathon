@@ -3,6 +3,21 @@ import { WebSocketManager } from '../services/websocket';
 import { LatencyProfiler } from '../services/latencyProfiler';
 import { CallRecord } from '../models/CallRecord';
 import { CallAnalysisService } from '../services/callAnalysisService';
+import { rateLimiter } from '../services/rateLimiter';
+
+// Global type declaration for processing states and caching
+declare global {
+  var processingStates: Map<string, {
+    lastProcessed: number;
+    lastSpeaker: string;
+    transcriptBuffer: string;
+    processingCount: number;
+    lastMeaningfulChunk: string;
+    cooldownUntil: number;
+  }> | undefined;
+  var emotionCache: Map<string, any> | undefined;
+  var autoCompleteTimeouts: Map<string, NodeJS.Timeout> | undefined;
+}
 
 interface TwilioTranscriptionData {
   CallSid: string;
@@ -116,20 +131,8 @@ export function twilioTranscriptionWebhook(
 
             wsManager.broadcastToAll(wsMessage);
 
-            // Process the transcript for AI suggestions - optimized for token efficiency
-            // Process every 500 characters to reduce API calls
-            console.log(`🔍 Checking AI processing condition: length=${updatedTranscript.length}, condition=${updatedTranscript.length > 500}`);
-            if (updatedTranscript.length > 30) {
-              console.log(`🤖 Triggering AI processing for transcript length: ${updatedTranscript.length}`);
-              try {
-                await processTranscriptionForAI(callRecord, updatedTranscript, wsManager);
-                console.log(`✅ AI processing completed successfully`);
-              } catch (error) {
-                console.error(`❌ Error in AI processing:`, error);
-              }
-            } else {
-              console.log(`⏳ Skipping AI processing - transcript too short (${updatedTranscript.length} chars)`);
-            }
+            // Smart AI processing with conversation state awareness
+            await handleSmartAIProcessing(callRecord, updatedTranscript, wsManager, speaker);
           } else {
             console.log(`⚠️ Call record not found for CallSid: ${callSid}`);
           }
@@ -236,13 +239,13 @@ function analyzeEmotionKeywords(text: string): any {
     curious: ['curious', 'interested', 'wondering', 'asking', 'questioning', 'inquisitive']
   };
 
-  const emotionScores = {};
+  const emotionScores: Record<string, number> = {};
   let totalMatches = 0;
 
   // Calculate emotion scores
   Object.keys(emotionKeywords).forEach(emotion => {
-    const keywords = emotionKeywords[emotion];
-    const matches = keywords.filter(keyword => lowerText.includes(keyword)).length;
+    const keywords = emotionKeywords[emotion as keyof typeof emotionKeywords];
+    const matches = keywords.filter((keyword: string) => lowerText.includes(keyword)).length;
     emotionScores[emotion] = matches;
     totalMatches += matches;
   });
@@ -253,7 +256,7 @@ function analyzeEmotionKeywords(text: string): any {
   });
 
   // Determine primary mood and sentiment
-  const primaryEmotion = Object.keys(emotionScores).reduce((a, b) => 
+  const primaryEmotion = Object.keys(emotionScores).reduce((a: string, b: string) => 
     emotionScores[a] > emotionScores[b] ? a : b
   );
 
@@ -263,7 +266,7 @@ function analyzeEmotionKeywords(text: string): any {
 
   // Get top 3 emotions
   const detectedEmotions = Object.entries(emotionScores)
-    .sort(([,a], [,b]) => b - a)
+    .sort(([,a], [,b]) => (b as number) - (a as number))
     .slice(0, 3)
     .map(([emotion, score]) => ({ emotion, score }));
 
@@ -298,7 +301,7 @@ function calculateSentimentScore(emotionScores: any): number {
 }
 
 function mapEmotionToMood(emotion: string): string {
-  const moodMap = {
+  const moodMap: Record<string, string> = {
     'happy': 'positive',
     'satisfied': 'positive',
     'confident': 'positive',
@@ -313,9 +316,148 @@ function mapEmotionToMood(emotion: string): string {
   return moodMap[emotion] || 'neutral';
 }
 
+// Smart AI processing with conversation state awareness and caching
+async function handleSmartAIProcessing(
+  callRecord: any,
+  updatedTranscript: string,
+  wsManager: WebSocketManager,
+  speaker: string
+) {
+  try {
+    const callId = callRecord._id.toString();
+    const now = Date.now();
+    
+    // Get or create processing state for this call
+    if (!global.processingStates) {
+      global.processingStates = new Map();
+    }
+    
+    let processingState = global.processingStates.get(callId);
+    if (!processingState) {
+      processingState = {
+        lastProcessed: 0,
+        lastSpeaker: '',
+        transcriptBuffer: '',
+        processingCount: 0,
+        lastMeaningfulChunk: '',
+        cooldownUntil: 0
+      };
+      global.processingStates.set(callId, processingState);
+    }
+    
+    // Update buffer with new transcript
+    processingState.transcriptBuffer = updatedTranscript;
+    processingState.lastSpeaker = speaker;
+    
+    // Check if we should process based on smart conditions
+    const shouldProcess = shouldTriggerAIProcessing(processingState, updatedTranscript, speaker, now);
+    
+    if (shouldProcess) {
+      console.log(`🤖 Smart AI processing triggered for call ${callId}`);
+      console.log(`📊 Processing stats: count=${processingState.processingCount}, buffer=${updatedTranscript.length} chars`);
+      
+      // Update processing state
+      processingState.lastProcessed = now;
+      processingState.processingCount++;
+      processingState.lastMeaningfulChunk = updatedTranscript;
+      processingState.cooldownUntil = now + 2000; // 2-second cooldown (optimized for speed)
+      
+      // Process with enhanced context
+      await processTranscriptionForAI(callRecord, updatedTranscript, wsManager);
+      
+      console.log(`✅ Smart AI processing completed for call ${callId}`);
+    } else {
+      console.log(`⏳ Smart AI processing skipped for call ${callId} - ${getSkipReason(processingState, updatedTranscript, speaker, now)}`);
+    }
+    
+  } catch (error) {
+    console.error(`❌ Error in smart AI processing:`, error);
+  }
+}
+
+// Determine if AI processing should be triggered based on smart conditions
+function shouldTriggerAIProcessing(
+  state: any,
+  transcript: string,
+  speaker: string,
+  now: number
+): boolean {
+  // 1. Cooldown check - OPTIMIZED to 2 seconds for faster suggestions
+  if (now < state.cooldownUntil) {
+    return false;
+  }
+  
+  // 2. Minimum transcript length - REDUCED to 50 for faster triggering
+  if (transcript.length < 50) {
+    return false;
+  }
+  
+  // 3. AGGRESSIVE: Trigger on ANY customer speech (removed agent dependency)
+  if (speaker === 'Customer') {
+    return true;
+  }
+  
+  // 4. Meaningful conversation chunks - REDUCED to 100 characters for faster processing
+  const newContent = transcript.substring(state.lastMeaningfulChunk.length);
+  if (newContent.length >= 100) {
+    return true;
+  }
+  
+  // 5. Question detection - process when customer asks questions
+  const questionIndicators = ['?', 'how', 'what', 'when', 'where', 'why', 'can you', 'do you', 'is it'];
+  const hasQuestion = questionIndicators.some(indicator => 
+    newContent.toLowerCase().includes(indicator)
+  );
+  if (hasQuestion) {
+    return true;
+  }
+  
+  // 6. Sentiment change detection - process when mood shifts
+  const sentimentKeywords = {
+    positive: ['great', 'excellent', 'love', 'amazing', 'perfect', 'yes', 'sure'],
+    negative: ['no', 'not', 'problem', 'issue', 'concern', 'worried', 'expensive'],
+    urgent: ['urgent', 'asap', 'quickly', 'immediately', 'now', 'today']
+  };
+  
+  const hasSentimentChange = Object.values(sentimentKeywords).some(keywords =>
+    keywords.some(keyword => newContent.toLowerCase().includes(keyword))
+  );
+  
+  if (hasSentimentChange) {
+    return true;
+  }
+  
+  // 7. Rate limiting - max 1 processing per 8 seconds, max 20 per call
+  if (state.processingCount >= 20) {
+    return false;
+  }
+  
+  return false;
+}
+
+// Get human-readable skip reason for debugging
+function getSkipReason(
+  state: any,
+  transcript: string,
+  speaker: string,
+  now: number
+): string {
+  if (now < state.cooldownUntil) {
+    const remaining = Math.ceil((state.cooldownUntil - now) / 1000);
+    return `cooldown (${remaining}s remaining)`;
+  }
+  if (transcript.length < 150) {
+    return `transcript too short (${transcript.length} chars)`;
+  }
+  if (state.processingCount >= 20) {
+    return `rate limit reached (${state.processingCount}/20)`;
+  }
+  return 'no meaningful triggers detected';
+}
+
 // Enhanced processTranscriptionForAI function
 async function processTranscriptionForAI(
-  callRecord: CallRecord, 
+  callRecord: any, 
   transcript: string, 
   wsManager: WebSocketManager
 ) {
@@ -332,11 +474,43 @@ async function processTranscriptionForAI(
     const moodAnalysis = await analyzeCustomerEmotions(transcript, callRecord);
     console.log(`😊 Enhanced Mood Analysis:`, moodAnalysis);
     
-    // Get comprehensive client history with customer-only transcripts
-    const clientHistory = await CallRecord.find({ clientId: callRecord.clientId })
+    // 🚀 FAST MODE: Generate immediate suggestions
+    const fastSuggestions = await generateFastSuggestions(transcript, moodAnalysis);
+    console.log('⚡ Fast suggestions generated');
+    
+    // Parse fast suggestions
+    let fastSuggestionsArray = [];
+    if (fastSuggestions && fastSuggestions.suggestions) {
+      fastSuggestionsArray = Array.isArray(fastSuggestions.suggestions) 
+        ? fastSuggestions.suggestions 
+        : [];
+    }
+
+    // 🚀 IMMEDIATE: Send fast suggestions right away via WebSocket
+    const immediateFastSuggestionsMessage = {
+      type: 'instant_suggestions',
+      callSid: callRecord.metadata?.callSid,
+      suggestions: fastSuggestionsArray,
+      moodAnalysis: moodAnalysis,
+      metadata: {
+        reason: 'fast_mode_suggestions',
+        used_context_ids: [],
+        timestamp: new Date().toISOString(),
+        processingTime: Date.now()
+      }
+    };
+    wsManager.broadcastToAll(immediateFastSuggestionsMessage);
+    console.log('⚡ IMMEDIATE fast suggestions sent via WebSocket');
+    
+    // 🚀 PARALLEL PROCESSING: Get comprehensive client history with customer-only transcripts
+    const clientHistoryPromise = CallRecord.find({ clientId: callRecord.clientId })
       .sort({ timestamp: -1 })
       .limit(5)
       .lean();
+    
+    // Start parallel processing (resolve when needed)
+    const clientHistory = await clientHistoryPromise;
+    console.log('🚀 Client history loaded in parallel');
 
     // Extract customer conversation patterns
     const customerConversationHistory = clientHistory.map(call => {
@@ -388,7 +562,7 @@ async function processTranscriptionForAI(
     
     console.log(`💡 Generated ${suggestionsArray.length} enhanced AI suggestions:`);
     console.log(`\n📋 ENHANCED SUGGESTIONS DETAILS:`);
-    suggestionsArray.forEach((suggestion, index) => {
+    suggestionsArray.forEach((suggestion: any, index: number) => {
       console.log(`\n   ${index + 1}. [${suggestion.type.toUpperCase()}]`);
       console.log(`      💬 Text: "${suggestion.text}"`);
       console.log(`      🎯 Confidence: ${(suggestion.confidence * 100).toFixed(1)}%`);
@@ -399,58 +573,72 @@ async function processTranscriptionForAI(
         console.log(`      🧠 Reasoning: ${suggestion.reasoning}`);
       }
     });
-    console.log(`\n🚀 Broadcasting to ${wsManager.getConnectionCount()} connected clients...`);
+    console.log(`\n🚀 Broadcasting IMMEDIATE suggestions to ${wsManager.getConnectionCount()} connected clients...`);
     console.log(`==========================================\n`);
 
-    // Perform comprehensive call analysis
-    let callAnalysis = null;
-    if (transcript.length > 100) {
-      try {
-        console.log('🔍 Performing comprehensive call analysis...');
-        callAnalysis = await CallAnalysisService.analyzeCall(transcript, callRecord.duration || 0);
-        console.log('✅ Call analysis completed:', callAnalysis.summary);
-      } catch (error) {
-        console.error('❌ Error in call analysis:', error);
+    // 🚀 IMMEDIATE: Send suggestions right away via WebSocket
+    const immediateSuggestionsMessage = {
+      type: 'instant_suggestions',
+      callSid: callRecord.metadata?.callSid,
+      suggestions: suggestionsArray,
+      moodAnalysis: moodAnalysis,
+      metadata: {
+        reason: 'immediate_suggestions',
+        used_context_ids: [],
+        timestamp: new Date().toISOString(),
+        processingTime: Date.now()
       }
-    }
+    };
+    wsManager.broadcastToAll(immediateSuggestionsMessage);
+    console.log('⚡ IMMEDIATE suggestions sent via WebSocket');
 
-    // Generate AI agent feedback
-    let agentFeedback = null;
-    if (transcript.length > 100 && callAnalysis) {
+    // 🎯 ENHANCED SUGGESTIONS: Send enhanced suggestions with full context
+    setImmediate(async () => {
       try {
-        console.log('🤖 Generating AI agent feedback...');
-        agentFeedback = await CallAnalysisService.generateAgentFeedback(transcript, callAnalysis);
-        console.log('✅ Agent feedback generated:', agentFeedback.overallFeedback);
-      } catch (error) {
-        console.error('❌ Error generating agent feedback:', error);
-      }
-    }
+        console.log('🎯 Starting enhanced suggestions processing...');
+        
+        // Send enhanced suggestions if available
+        if (salesSuggestions && salesSuggestions.suggestions) {
+          let enhancedSuggestionsArray = [];
+          if (Array.isArray(salesSuggestions.suggestions)) {
+            enhancedSuggestionsArray = salesSuggestions.suggestions;
+          } else if (typeof salesSuggestions.suggestions === 'string') {
+            try {
+              enhancedSuggestionsArray = JSON.parse(salesSuggestions.suggestions);
+            } catch (e) {
+              console.error('❌ Failed to parse enhanced suggestions:', e);
+              enhancedSuggestionsArray = [];
+            }
+          }
 
-    // Generate AI call summary
-    let callSummary = null;
-    if (transcript.length > 100 && callAnalysis && agentFeedback) {
-      try {
-        console.log('📝 Generating AI call summary...');
-        callSummary = await CallAnalysisService.generateCallSummary(transcript, callAnalysis, agentFeedback);
-        console.log('✅ Call summary generated:', callSummary.overallAssessment);
-      } catch (error) {
-        console.error('❌ Error generating call summary:', error);
+          if (enhancedSuggestionsArray.length > 0) {
+            const enhancedSuggestionsMessage = {
+              type: 'enhanced_suggestions',
+              callSid: callRecord.metadata?.callSid,
+              suggestions: enhancedSuggestionsArray,
+              metadata: {
+                reason: 'enhanced_mode_suggestions',
+                timestamp: new Date().toISOString(),
+                processingTime: Date.now()
+              }
+            };
+            wsManager.broadcastToAll(enhancedSuggestionsMessage);
+            console.log('🎯 Enhanced suggestions sent via WebSocket');
+          }
+        }
+      } catch (enhancedError) {
+        console.error('❌ Error in enhanced suggestions processing:', enhancedError);
       }
-    }
+    });
 
-    // Generate enhanced analysis
-    let enhancedAnalysis = null;
-    if (transcript.length > 50) {
-      try {
-        console.log('🔍 Generating enhanced analysis...');
-        enhancedAnalysis = await CallAnalysisService.generateEnhancedAnalysis(transcript);
-        console.log('✅ Enhanced analysis generated:', enhancedAnalysis.moodAnalysis?.mood);
-      } catch (error) {
-        console.error('❌ Error generating enhanced analysis:', error);
-      }
-    }
+    // ⚡ LIVE PROCESSING COMPLETE - Heavy analysis moved to call end
+    console.log('⚡ Live suggestion processing complete - heavy analysis deferred to call end');
+    // Note: Call summary, agent feedback, and full analysis will be triggered at call end only
+    
+    // 🕒 AUTO-COMPLETE DETECTOR: Check if call should be auto-completed after inactivity
+    scheduleAutoCallCompletion(callRecord, wsManager);
 
-    // Set call end time if not already set
+    // 🚀 IMMEDIATE: Update call record with only essential data
     const callEndTime = callRecord.callEndTime || new Date();
     
     // Calculate duration from callStartTime and callEndTime if available
@@ -461,12 +649,12 @@ async function processTranscriptionForAI(
       calculatedDuration = Math.round((endTime - startTime) / 1000); // Convert to seconds
     }
 
-    // Update call record with enhanced analysis
-    const updateData: any = {
+    // Update call record with immediate data only (using fast suggestions)
+    const immediateUpdateData: any = {
       mood: moodAnalysis.mood,
       sentiment: moodAnalysis.sentiment,
-      aiSuggestions: suggestionsArray,
-      outcome: determineCallOutcome(suggestionsArray, moodAnalysis),
+      aiSuggestions: fastSuggestionsArray, // Use fast suggestions for immediate DB update
+      outcome: determineCallOutcome(fastSuggestionsArray, moodAnalysis),
       callEndTime: callEndTime,
       duration: calculatedDuration,
       emotionAnalysis: {
@@ -476,81 +664,102 @@ async function processTranscriptionForAI(
       }
     };
 
-    if (callAnalysis) {
-      updateData.callAnalysis = callAnalysis;
-    }
+    await CallRecord.findByIdAndUpdate(callRecord._id, immediateUpdateData);
+    console.log('✅ Call record updated with immediate data');
 
-    if (agentFeedback) {
-      updateData.agentFeedback = agentFeedback;
-    }
-
-    if (callSummary) {
-      updateData.callSummary = callSummary;
-    }
-
-    if (enhancedAnalysis) {
-      updateData.enhancedAnalysis = enhancedAnalysis;
-    }
-
-    await CallRecord.findByIdAndUpdate(callRecord._id, updateData);
-
-    // Broadcast enhanced live analysis with emotion data
-    const liveAnalysisMessage = {
-      type: 'live_analysis',
-      callSid: callRecord.metadata?.callSid,
-      transcript: transcript,
-      moodAnalysis: moodAnalysis,
-      suggestions: suggestionsArray,
-      enhancedAnalysis: enhancedAnalysis,
-      emotionGraph: {
-        emotions: moodAnalysis.emotions,
-        scores: moodAnalysis.emotionScores,
-        primaryMood: moodAnalysis.mood,
-        sentiment: moodAnalysis.sentiment
-      },
-      timestamp: new Date().toISOString()
-    };
-
-    wsManager.broadcastToAll(liveAnalysisMessage);
-
-    // Enhanced conversation message
-    const wsMessage = {
+    // Send final conversation message with immediate data
+    const finalMessage = {
       type: 'transcription_processed',
       conversationId: callRecord.clientId.toString(),
-      callRecord: {
-        id: callRecord._id,
-        clientId: callRecord.clientId,
-        phoneNumber: callRecord.phoneNumber,
-        timestamp: callRecord.timestamp,
-        duration: callRecord.duration,
-        transcript: transcript,
-        mood: moodAnalysis.mood,
-        sentiment: moodAnalysis.sentiment,
-        emotions: moodAnalysis.emotions,
-        emotionScores: moodAnalysis.emotionScores,
-        direction: callRecord.direction,
-        aiSuggestions: suggestionsArray,
-        outcome: determineCallOutcome(suggestionsArray, moodAnalysis),
-        metadata: callRecord.metadata
+      suggestions: suggestionsArray,
+      metadata: {
+        reason: 'transcript_processed',
+        used_context_ids: [],
+        processingTime: Date.now(),
+        transcriptLength: transcript.length,
+        suggestionCount: suggestionsArray.length,
+        timestamp: new Date().toISOString()
       },
-      moodAnalysis,
+      moodAnalysis: moodAnalysis,
       emotionGraph: {
         emotions: moodAnalysis.emotions,
         scores: moodAnalysis.emotionScores,
         primaryMood: moodAnalysis.mood,
         sentiment: moodAnalysis.sentiment
       },
-      clientHistory: customerConversationHistory.slice(-3),
       timestamp: new Date().toISOString()
     };
 
-    wsManager.broadcastToConversation(callRecord.clientId.toString(), wsMessage);
-
-    console.log(`✅ Enhanced AI suggestions broadcasted to all connected clients: ${suggestionsArray.length} suggestions`);
+    wsManager.broadcastToConversation(callRecord.clientId.toString(), finalMessage);
+    console.log(`✅ Final conversation message sent with immediate data: ${suggestionsArray.length} suggestions`);
 
   } catch (error) {
     console.error('❌ Error processing transcription for AI:', error);
   }
+}
+
+// Fast suggestion function for immediate responses
+async function generateFastSuggestions(
+  transcript: string,
+  moodAnalysis: any
+): Promise<any> {
+  try {
+    const { OpenAIClient } = await import('../services/openaiClient');
+    const openaiClient = new OpenAIClient();
+
+    if (!openaiClient.client) {
+      return generateMockSalesSuggestions(transcript, moodAnalysis);
+    }
+
+    // FAST MODE: Minimal prompt, no heavy context for immediate response
+    const fastPrompt = `Expert FoodHub Sales Agent. Customer: "${transcript.slice(-200)}"
+Mood: ${moodAnalysis.mood}, Sentiment: ${moodAnalysis.sentiment}
+
+Provide 2 immediate, actionable suggestions in JSON:
+{
+  "suggestions": [
+    {
+      "text": "Quick actionable suggestion based on customer mood",
+      "type": "solution|question|offer",
+      "confidence": 0.8,
+      "deliver_as": "immediate_response",
+      "offer_id": "fast_suggestion",
+      "customer_mood": "${moodAnalysis.mood}"
+    }
+  ]
+}`;
+
+    // Check rate limit for fast suggestions
+    const canMakeCall = await rateLimiter.canMakeCall('fast_suggestions', 200);
+    if (!canMakeCall) {
+      console.log('🚫 Rate limit exceeded for fast suggestions, using fallback');
+      return generateMockSalesSuggestions(transcript, moodAnalysis);
+    }
+
+    const response = await openaiClient.client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: "system", content: "Fast FoodHub Sales Assistant. Respond with JSON only." },
+        { role: "user", content: fastPrompt }
+      ],
+      temperature: 0.3,
+      max_tokens: 200 // Reduced for speed
+    });
+
+    const content = response.choices?.[0]?.message?.content;
+    if (content) {
+      // Simple JSON cleaning for fast mode
+      const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
+      const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+    }
+  } catch (error) {
+    console.error('Fast suggestion error:', error);
+  }
+  
+  return generateMockSalesSuggestions(transcript, moodAnalysis);
 }
 
 // Enhanced sales suggestions function
@@ -621,20 +830,36 @@ OUTPUT FORMAT (JSON only):
   }
 }`;
 
+    // Check cache first to avoid duplicate processing
+    const cacheKey = `emotion_${Buffer.from(transcript.slice(-200)).toString('base64')}`;
+    if (global.emotionCache && global.emotionCache.has(cacheKey)) {
+      console.log('🎯 Using cached emotion analysis');
+      return global.emotionCache.get(cacheKey);
+    }
+
+    // Check rate limit before making API call
+    const estimatedTokens = 400; // Based on our max_tokens setting
+    const canMakeCall = await rateLimiter.canMakeCall('emotion_analysis', estimatedTokens);
+    
+    if (!canMakeCall) {
+      console.log('🚫 Rate limit exceeded for emotion analysis, using fallback');
+      return generateMockSalesSuggestions(transcript, moodAnalysis);
+    }
+
     const response = await openaiClient.client.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      model: 'gpt-4o-mini', // Force GPT-4o-mini for cost optimization
       messages: [
         {
           role: "system",
-          content: "You are an expert FoodHub Sales Agent. Provide crisp, actionable suggestions based on customer emotions and conversation history. Always respond with valid JSON only."
+          content: "Expert FoodHub Sales Agent. Analyze customer emotions and provide actionable suggestions. Respond with valid JSON only."
         },
         {
           role: "user",
           content: prompt
         }
       ],
-      temperature: 0.7,
-      max_tokens: 800
+      temperature: 0.5, // Reduced for more consistent responses
+      max_tokens: 400 // Reduced token usage by 50%
     });
 
     const content = response.choices?.[0]?.message?.content;
@@ -642,15 +867,85 @@ OUTPUT FORMAT (JSON only):
       throw new Error('No response from OpenAI');
     }
 
-    // Parse JSON response
+    // Parse JSON response with improved error handling
     let parsedResponse;
+    let cleanContent = '';
     try {
       // Remove markdown code blocks if present
-      const cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
+      cleanContent = content.replace(/```json\n?|\n?```/g, '').trim();
+      
+      // Extract JSON object from response
+      const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        cleanContent = jsonMatch[0];
+      }
+      
+      // Additional cleaning for common JSON issues
+      cleanContent = cleanContent
+        .replace(/,\s*}/g, '}')  // Remove trailing commas before closing braces
+        .replace(/,\s*]/g, ']')  // Remove trailing commas before closing brackets
+        .replace(/([{,]\s*)(\w+):/g, '$1"$2":')  // Quote unquoted keys
+        .replace(/:(\s*)([^",{\[\s][^",}\]\s]*?)(\s*[,}\]])/g, ': "$2"$3');  // Quote unquoted string values
+      
       parsedResponse = JSON.parse(cleanContent);
+      
+      // Cache the result for future use
+      if (!global.emotionCache) {
+        global.emotionCache = new Map();
+      }
+      global.emotionCache.set(cacheKey, parsedResponse);
+      
+      // Limit cache size to prevent memory issues
+      if (global.emotionCache.size > 100) {
+        const firstKey = global.emotionCache.keys().next().value;
+        if (firstKey) {
+          global.emotionCache.delete(firstKey);
+        }
+      }
+      
     } catch (parseError) {
-      console.error('Failed to parse OpenAI response:', parseError);
+      console.error('❌ Failed to parse OpenAI response:', parseError);
       console.error('Raw response:', content);
+      console.error('Cleaned content:', cleanContent);
+      console.log('🔄 Falling back to mock suggestions due to JSON parsing error');
+      
+      // Try one more aggressive cleaning attempt
+      try {
+        let aggressiveClean = content.replace(/```json\n?|\n?```/g, '').trim();
+        const jsonMatch = aggressiveClean.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          aggressiveClean = jsonMatch[0];
+        }
+        
+        // More aggressive cleaning
+        aggressiveClean = aggressiveClean
+          .replace(/,\s*}/g, '}')
+          .replace(/,\s*]/g, ']')
+          .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":')
+          .replace(/:(\s*)([^",{\[\s][^",}\]\s]*?)(\s*[,}\]])/g, ': "$2"$3')
+          .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*([^",{\[\s][^",}\]\s]*?)(\s*[,}\]])/g, '$1"$2": "$3"$4')
+          .replace(/:(\s*)(true|false|null)\s*([,}])/g, ': $1$2$3')
+          .replace(/:(\s*)(\d+\.?\d*)\s*([,}])/g, ': $1$2$3')
+          .replace(/:(\s*)([^",{\[\s][^",}\]\s]*?)(\s*[,}\]])/g, ': "$2"$3')
+          .replace(/,\s*}/g, '}')
+          .replace(/,\s*]/g, ']');
+        
+        if (aggressiveClean.trim().startsWith('{') && aggressiveClean.trim().endsWith('}')) {
+          parsedResponse = JSON.parse(aggressiveClean);
+          console.log('✅ Successfully parsed with aggressive cleaning');
+          
+          // Cache the result
+          if (!global.emotionCache) {
+            global.emotionCache = new Map();
+          }
+          global.emotionCache.set(cacheKey, parsedResponse);
+          
+          return parsedResponse;
+        }
+      } catch (finalError) {
+        console.error('❌ Even aggressive cleaning failed:', finalError);
+      }
+      
       return generateMockSalesSuggestions(transcript, moodAnalysis);
     }
 
@@ -681,4 +976,161 @@ function generateMockSalesSuggestions(transcript: string, moodAnalysis: any): an
       recommended_approach: "Standard approach"
     }
   };
+}
+
+// 🏁 END-OF-CALL ANALYSIS: Heavy processing for call completion
+export async function performEndOfCallAnalysis(
+  callRecord: any,
+  finalTranscript: string,
+  wsManager: WebSocketManager
+): Promise<void> {
+  try {
+    console.log('🏁 ===== STARTING END-OF-CALL ANALYSIS =====');
+    console.log(`📄 Call ID: ${callRecord._id}`);
+    console.log(`📄 Phone: ${callRecord.phoneNumber}`);
+    console.log(`📄 Final transcript length: ${finalTranscript.length} characters`);
+    console.log(`📄 First 200 chars: "${finalTranscript.substring(0, 200)}..."`);
+    
+    const startTime = Date.now();
+    
+    // Perform comprehensive call analysis
+    let callAnalysis = null;
+    if (finalTranscript.length > 100) {
+      try {
+        console.log('🔍 Performing comprehensive call analysis...');
+        callAnalysis = await CallAnalysisService.analyzeCall(finalTranscript, callRecord.duration || 0);
+        console.log('✅ Call analysis completed:', callAnalysis.summary);
+      } catch (error) {
+        console.error('❌ Error in call analysis:', error);
+      }
+    }
+
+    // Generate AI agent feedback
+    let agentFeedback = null;
+    if (finalTranscript.length > 100 && callAnalysis) {
+      try {
+        console.log('🤖 Generating AI agent feedback...');
+        agentFeedback = await CallAnalysisService.generateAgentFeedback(finalTranscript, callAnalysis);
+        console.log('✅ Agent feedback generated:', agentFeedback.overallFeedback);
+      } catch (error) {
+        console.error('❌ Error generating agent feedback:', error);
+      }
+    }
+
+    // Generate AI call summary
+    let callSummary = null;
+    if (finalTranscript.length > 100 && callAnalysis && agentFeedback) {
+      try {
+        console.log('📝 Generating AI call summary...');
+        callSummary = await CallAnalysisService.generateCallSummary(finalTranscript, callAnalysis, agentFeedback);
+        console.log('✅ Call summary generated:', callSummary.overallAssessment);
+      } catch (error) {
+        console.error('❌ Error generating call summary:', error);
+      }
+    }
+
+    // Generate enhanced analysis
+    let enhancedAnalysis = null;
+    if (finalTranscript.length > 50) {
+      try {
+        console.log('🔍 Generating enhanced analysis...');
+        enhancedAnalysis = await CallAnalysisService.generateEnhancedAnalysis(finalTranscript);
+        console.log('✅ Enhanced analysis generated:', enhancedAnalysis.moodAnalysis?.mood);
+      } catch (error) {
+        console.error('❌ Error generating enhanced analysis:', error);
+      }
+    }
+
+    // Update database with all analysis results
+    if (callAnalysis || agentFeedback || callSummary || enhancedAnalysis) {
+      const endOfCallUpdateData: any = {};
+      if (callAnalysis) endOfCallUpdateData.callAnalysis = callAnalysis;
+      if (agentFeedback) endOfCallUpdateData.agentFeedback = agentFeedback;
+      if (callSummary) endOfCallUpdateData.callSummary = callSummary;
+      if (enhancedAnalysis) endOfCallUpdateData.enhancedAnalysis = enhancedAnalysis;
+      
+      // Mark call as completed
+      endOfCallUpdateData.status = 'completed';
+      endOfCallUpdateData.analysisCompletedAt = new Date();
+
+      await CallRecord.findByIdAndUpdate(callRecord._id, endOfCallUpdateData);
+      console.log('✅ Call record updated with end-of-call analysis data');
+
+      // Send end-of-call analysis via WebSocket
+      const endOfCallAnalysisMessage = {
+        type: 'end_of_call_analysis_complete',
+        callSid: callRecord.metadata?.callSid,
+        callAnalysis: callAnalysis,
+        agentFeedback: agentFeedback,
+        callSummary: callSummary,
+        enhancedAnalysis: enhancedAnalysis,
+        metadata: {
+          reason: 'end_of_call_analysis',
+          timestamp: new Date().toISOString(),
+          processingTime: Date.now() - startTime
+        }
+      };
+      wsManager.broadcastToAll(endOfCallAnalysisMessage);
+      console.log(`🏁 End-of-call analysis completed and sent in ${Date.now() - startTime}ms`);
+    }
+    
+    console.log('🏁 ===== END-OF-CALL ANALYSIS COMPLETE =====');
+  } catch (error) {
+    console.error('❌ Error in end-of-call analysis:', error);
+  }
+}
+
+// 🕒 AUTO-COMPLETE DETECTOR: Automatically trigger call analysis after inactivity
+function scheduleAutoCallCompletion(callRecord: any, wsManager: WebSocketManager): void {
+  // Cancel any existing timeout for this call
+  const callId = callRecord._id.toString();
+  
+  if (global.autoCompleteTimeouts) {
+    const existingTimeout = global.autoCompleteTimeouts.get(callId);
+    if (existingTimeout) {
+      clearTimeout(existingTimeout);
+    }
+  } else {
+    global.autoCompleteTimeouts = new Map();
+  }
+  
+  // Schedule auto-completion after 30 seconds of inactivity
+  const timeout = setTimeout(async () => {
+    try {
+      console.log(`🕒 Auto-completing call after inactivity: ${callId}`);
+      
+      // Check if call is still in progress
+      const currentCall = await CallRecord.findById(callId);
+      if (currentCall && currentCall.status === 'in_progress') {
+        console.log(`🕒 Auto-completing call ${callId} - transcript length: ${currentCall.transcript?.length || 0}`);
+        
+        // Update call status to completed
+        await CallRecord.findByIdAndUpdate(callId, {
+          status: 'completed',
+          callEndTime: new Date(),
+          outcome: 'auto_completed'
+        });
+        
+        // Trigger analysis if we have a meaningful transcript
+        if (currentCall.transcript && currentCall.transcript.length > 50) {
+          console.log(`🕒 Triggering auto-completion analysis for call ${callId}`);
+          await performEndOfCallAnalysis(currentCall, currentCall.transcript, wsManager);
+        } else {
+          console.log(`🕒 Skipping analysis for call ${callId} - transcript too short or missing`);
+        }
+      }
+      
+      // Remove from timeout map
+      if (global.autoCompleteTimeouts) {
+        global.autoCompleteTimeouts.delete(callId);
+      }
+      
+    } catch (error) {
+      console.error(`❌ Error in auto-completion for call ${callId}:`, error);
+    }
+  }, 30000); // 30 seconds
+  
+  // Store the timeout
+  global.autoCompleteTimeouts.set(callId, timeout);
+  console.log(`🕒 Scheduled auto-completion for call ${callId} in 30 seconds`);
 }

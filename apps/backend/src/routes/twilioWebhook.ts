@@ -6,6 +6,7 @@ import { OpenAIClient } from '../services/openaiClient';
 import { Client } from '../models/Client';
 import { CallRecord } from '../models/CallRecord';
 import { mongoDBService } from '../services/mongodb';
+import { performEndOfCallAnalysis } from './twilioTranscription';
 import { PROMPTS, buildPrompt } from '../prompts';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -207,6 +208,48 @@ async function handleCallCompleted(
       await processCallTranscript(callRecord, wsManager);
     }
 
+    // 🏁 TRIGGER END-OF-CALL ANALYSIS: Heavy processing for completed calls
+    console.log(`🏁 Checking end-of-call analysis conditions:`);
+    console.log(`   - TranscriptionText exists: ${!!callData.TranscriptionText}`);
+    console.log(`   - TranscriptionText length: ${callData.TranscriptionText?.length || 0}`);
+    console.log(`   - Call status: ${callData.CallStatus}`);
+    
+    // Check for transcript from webhook or database
+    let finalTranscript = callData.TranscriptionText || '';
+    if (!finalTranscript || finalTranscript.length < 50) {
+      // Try to get transcript from database (built up during live transcription)
+      const savedCallRecord = await CallRecord.findById(callRecord._id);
+      if (savedCallRecord && savedCallRecord.transcript) {
+        finalTranscript = savedCallRecord.transcript;
+        console.log(`📄 Using transcript from database: ${finalTranscript.length} characters`);
+      }
+    }
+    
+    if (finalTranscript && finalTranscript.length > 50) {
+      console.log('🏁 ===== TRIGGERING END-OF-CALL ANALYSIS =====');
+      console.log(`📄 Final transcript length: ${finalTranscript.length}`);
+      console.log(`📄 Transcript preview: "${finalTranscript.substring(0, 200)}..."`);
+      
+      // Run end-of-call analysis in background (non-blocking)
+      setImmediate(async () => {
+        try {
+          console.log('🏁 Starting performEndOfCallAnalysis...');
+          await performEndOfCallAnalysis(callRecord, finalTranscript, wsManager);
+          console.log('✅ End-of-call analysis completed successfully');
+        } catch (error) {
+          console.error('❌ Error in end-of-call analysis:', error);
+          console.error('Error stack:', error.stack);
+        }
+      });
+    } else {
+      console.log('⚠️ End-of-call analysis skipped - conditions not met');
+      if (!callData.TranscriptionText) {
+        console.log('   Reason: No transcription text available');
+      } else if (callData.TranscriptionText.length <= 50) {
+        console.log(`   Reason: Transcription too short (${callData.TranscriptionText.length} chars)`);
+      }
+    }
+
     console.log(`✅ Call record created and client updated: ${client.phoneNumber}`);
     
     res.status(200).send('OK');
@@ -266,6 +309,45 @@ async function handleCallEnded(
       lastInteraction: `Call ${callData.CallStatus}`,
       updatedAt: new Date()
     });
+
+    // 🏁 TRIGGER END-OF-CALL ANALYSIS: Even for ended calls if we have transcript
+    // Check for existing transcript from live transcription
+    let endedCallTranscript = callRecord.transcript;
+    if (!endedCallTranscript || endedCallTranscript === 'Call ended without completion') {
+      // Try to find existing call record with transcript
+      const existingCall = await CallRecord.findOne({
+        phoneNumber: callData.From,
+        status: 'in_progress'
+      }).sort({ timestamp: -1 });
+      
+      if (existingCall && existingCall.transcript) {
+        endedCallTranscript = existingCall.transcript;
+        console.log(`📄 Found existing transcript for ended call: ${endedCallTranscript.length} characters`);
+      }
+    }
+    
+    console.log(`🏁 Checking end-of-call analysis for ended call:`);
+    console.log(`   - Transcript exists: ${!!endedCallTranscript}`);
+    console.log(`   - Transcript length: ${endedCallTranscript?.length || 0}`);
+    
+    if (endedCallTranscript && endedCallTranscript.length > 50 && endedCallTranscript !== 'Call ended without completion') {
+      console.log('🏁 ===== TRIGGERING END-OF-CALL ANALYSIS FOR ENDED CALL =====');
+      console.log(`📄 Transcript preview: "${endedCallTranscript.substring(0, 200)}..."`);
+      
+      // Run end-of-call analysis in background (non-blocking)
+      setImmediate(async () => {
+        try {
+          console.log('🏁 Starting performEndOfCallAnalysis for ended call...');
+          await performEndOfCallAnalysis(callRecord, endedCallTranscript, wsManager);
+          console.log('✅ End-of-call analysis completed successfully for ended call');
+        } catch (error) {
+          console.error('❌ Error in end-of-call analysis for ended call:', error);
+          console.error('Error stack:', error.stack);
+        }
+      });
+    } else {
+      console.log('⚠️ End-of-call analysis skipped for ended call - no meaningful transcript');
+    }
 
     console.log(`✅ Call end record created: ${client.phoneNumber}`);
     
@@ -390,7 +472,7 @@ export async function analyzeCallMood(transcript: string): Promise<MoodAnalysis>
     }
 
     const response = await openaiClient.client.chat.completions.create({
-      model: process.env.OPENAI_MODEL!,
+      model: 'gpt-4o-mini', // Force GPT-4o-mini for cost optimization
       messages: [
         {
           role: "system",
@@ -533,7 +615,7 @@ export async function generateSalesSuggestions(
 
     console.log('🚀 Sending request to OpenAI...');
     const response = await openaiClient.client.chat.completions.create({
-      model: process.env.OPENAI_MODEL!,
+      model: 'gpt-4o-mini', // Force GPT-4o-mini for cost optimization
       messages: [
         {
           role: "system",
@@ -545,7 +627,7 @@ export async function generateSalesSuggestions(
         }
       ],
       temperature: 0.7,
-      max_tokens: 1000
+      max_tokens: 500 // Reduced for cost optimization
     });
 
     console.log('✅ OpenAI response received');
@@ -646,4 +728,130 @@ export function determineCallOutcome(suggestions: any[], moodAnalysis: MoodAnaly
   } else {
     return 'follow_up';
   }
+}
+
+// 🔧 MANUAL TRIGGER: Force end-of-call analysis for a specific call
+export function manualTriggerCallAnalysis(
+  wsManager: WebSocketManager
+) {
+  return async (req: Request, res: Response) => {
+    try {
+      const { callId } = req.params;
+      
+      if (!callId) {
+        return res.status(400).json({ error: 'Call ID is required' });
+      }
+      
+      console.log(`🔧 Manual trigger: Analyzing call ${callId}`);
+      
+      // Find the call record
+      const callRecord = await CallRecord.findById(callId);
+      if (!callRecord) {
+        return res.status(404).json({ error: 'Call not found' });
+      }
+      
+      if (!callRecord.transcript || callRecord.transcript.length < 50) {
+        return res.status(400).json({ 
+          error: 'Call has no transcript or transcript too short',
+          transcriptLength: callRecord.transcript?.length || 0
+        });
+      }
+      
+      console.log(`🔧 Starting manual analysis for call ${callId}`);
+      console.log(`📄 Transcript length: ${callRecord.transcript.length}`);
+      
+      // Trigger the analysis
+      setImmediate(async () => {
+        try {
+          await performEndOfCallAnalysis(callRecord, callRecord.transcript, wsManager);
+          console.log(`✅ Manual analysis completed for call ${callId}`);
+        } catch (error) {
+          console.error(`❌ Manual analysis failed for call ${callId}:`, error);
+        }
+      });
+      
+      res.json({ 
+        success: true, 
+        message: 'Call analysis triggered',
+        callId: callId,
+        transcriptLength: callRecord.transcript.length
+      });
+      
+    } catch (error) {
+      console.error('❌ Error in manual call analysis trigger:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  };
+}
+
+// 🔍 CHECK IN-PROGRESS CALLS: Find and complete stale calls
+export function checkInProgressCalls(
+  wsManager: WebSocketManager
+) {
+  return async (req: Request, res: Response) => {
+    try {
+      console.log('🔍 Checking for stale in-progress calls...');
+      
+      // Find calls that have been in progress for more than 5 minutes
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const staleCalls = await CallRecord.find({
+        status: 'in_progress',
+        updatedAt: { $lt: fiveMinutesAgo }
+      }).sort({ updatedAt: -1 });
+      
+      console.log(`🔍 Found ${staleCalls.length} stale calls`);
+      
+      const results = [];
+      
+      for (const call of staleCalls) {
+        console.log(`🔍 Processing stale call: ${call._id}`);
+        console.log(`   - Phone: ${call.phoneNumber}`);
+        console.log(`   - Last updated: ${call.updatedAt}`);
+        console.log(`   - Transcript length: ${call.transcript?.length || 0}`);
+        
+        // Update call status to completed
+        await CallRecord.findByIdAndUpdate(call._id, {
+          status: 'completed',
+          callEndTime: new Date(),
+          outcome: 'auto_completed_stale'
+        });
+        
+        const result = {
+          callId: call._id,
+          phoneNumber: call.phoneNumber,
+          transcriptLength: call.transcript?.length || 0,
+          lastUpdated: call.updatedAt,
+          analysisTriggered: false
+        };
+        
+        // Trigger analysis if we have a meaningful transcript
+        if (call.transcript && call.transcript.length > 50) {
+          console.log(`🔍 Triggering analysis for stale call ${call._id}`);
+          setImmediate(async () => {
+            try {
+              await performEndOfCallAnalysis(call, call.transcript, wsManager);
+              console.log(`✅ Analysis completed for stale call ${call._id}`);
+            } catch (error) {
+              console.error(`❌ Analysis failed for stale call ${call._id}:`, error);
+            }
+          });
+          result.analysisTriggered = true;
+        } else {
+          console.log(`🔍 Skipping analysis for stale call ${call._id} - transcript too short`);
+        }
+        
+        results.push(result);
+      }
+      
+      res.json({ 
+        success: true, 
+        message: `Processed ${staleCalls.length} stale calls`,
+        staleCalls: results
+      });
+      
+    } catch (error) {
+      console.error('❌ Error checking in-progress calls:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  };
 }

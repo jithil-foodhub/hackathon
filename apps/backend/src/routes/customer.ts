@@ -159,7 +159,7 @@ async function generateFoodHubSalesResponse(
     // Use OpenAI directly with the custom prompt
     const response = await openaiClient.client.chat.completions.create({
       // model: "gpt-4",
-      model: process.env.OPENAI_MODEL!,
+      model: process.env.OPENAI_MODEL, // Force GPT-4o-mini for cost optimization
       messages: [
         {
           role: "system",

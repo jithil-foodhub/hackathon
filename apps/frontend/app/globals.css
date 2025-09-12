@@ -113,4 +113,93 @@ html, body, #__next {
   .suggestion-pricing-inquiry {
     @apply border-l-rose-500 bg-rose-50;
   }
+  
+  /* Enhanced Client Page Animations */
+  .client-card {
+    animation: slideInUp 0.6s ease-out forwards;
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  
+  .client-card:hover .client-avatar {
+    transform: scale(1.05) rotate(2deg);
+  }
+  
+  .stats-card {
+    animation: fadeInScale 0.5s ease-out forwards;
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  
+  .search-bar {
+    animation: slideInDown 0.4s ease-out;
+  }
+  
+  .header-title {
+    animation: fadeInLeft 0.8s ease-out;
+  }
+  
+  .add-client-btn {
+    animation: fadeInRight 0.8s ease-out;
+  }
+  
+  /* Staggered animations */
+  .client-card:nth-child(1) { animation-delay: 0.1s; }
+  .client-card:nth-child(2) { animation-delay: 0.2s; }
+  .client-card:nth-child(3) { animation-delay: 0.3s; }
+  .client-card:nth-child(4) { animation-delay: 0.4s; }
+  .client-card:nth-child(5) { animation-delay: 0.5s; }
+  .client-card:nth-child(6) { animation-delay: 0.6s; }
+  
+  .stats-card:nth-child(1) { animation-delay: 0.1s; }
+  .stats-card:nth-child(2) { animation-delay: 0.2s; }
+  .stats-card:nth-child(3) { animation-delay: 0.3s; }
+  .stats-card:nth-child(4) { animation-delay: 0.4s; }
+}
+
+@keyframes slideInUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInScale {
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }

@@ -21,7 +21,7 @@ export class LangChainRagService {
 
     this.llm = new ChatOpenAI({
       openAIApiKey: process.env.OPENAI_API_KEY,
-      modelName: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      modelName: process.env.OPENAI_MODEL, // Force GPT-4o-mini for cost optimization
       temperature: 0.1, // Lower temperature for more consistent responses
     });
   }

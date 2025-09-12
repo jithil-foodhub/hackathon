@@ -1964,7 +1964,7 @@ export default function ClientDetailPage() {
                                           AI Agent Feedback & Next Steps
                                         </h6>
                                         <p className="text-xs text-blue-700">
-                                          Performance: {call.agentFeedback.performanceScore}/10
+                                          Performance: {call.agentFeedback.performanceScore || 'N/A'}/10
                                         </p>
                                       </div>
                                     </div>
@@ -1990,40 +1990,42 @@ export default function ClientDetailPage() {
                                       <div className="flex items-center justify-between mb-2">
                                         <span className="text-xs font-medium text-slate-700">Overall Performance</span>
                                         <span className="text-sm font-bold text-blue-600">
-                                          {call.agentFeedback.performanceScore}/10
+                                          {call.agentFeedback.performanceScore || 'N/A'}/10
                                         </span>
                                       </div>
                                       <div className="w-full bg-slate-200 rounded-full h-2">
                                         <div 
                                           className={`h-2 rounded-full transition-all duration-300 ${
-                                            call.agentFeedback.performanceScore >= 8 
+                                            (call.agentFeedback.performanceScore || 0) >= 8 
                                               ? 'bg-green-500' 
-                                              : call.agentFeedback.performanceScore >= 6 
+                                              : (call.agentFeedback.performanceScore || 0) >= 6 
                                               ? 'bg-yellow-500' 
                                               : 'bg-red-500'
                                           }`}
                                           style={{ 
-                                            width: `${(call.agentFeedback.performanceScore / 10) * 100}%` 
+                                            width: `${((call.agentFeedback.performanceScore || 0) / 10) * 100}%` 
                                           }}
                                         ></div>
                                       </div>
                                       <p className="text-xs text-slate-600 mt-1">
-                                        {call.agentFeedback.overallFeedback}
+                                        {call.agentFeedback.overallFeedback || 'No overall feedback available'}
                                       </p>
                                     </div>
 
                                     {/* Conversation Quality */}
-                                    <div className="bg-white rounded-lg p-3 border border-blue-100">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <span className="text-xs font-medium text-slate-700">Conversation Quality</span>
-                                        <span className="text-sm font-bold text-blue-600">
-                                          {call.agentFeedback?.conversationQuality?.rating}/10
-                                        </span>
+                                    {call.agentFeedback.conversationQuality && (
+                                      <div className="bg-white rounded-lg p-3 border border-blue-100">
+                                        <div className="flex items-center justify-between mb-2">
+                                          <span className="text-xs font-medium text-slate-700">Conversation Quality</span>
+                                          <span className="text-sm font-bold text-blue-600">
+                                            {call.agentFeedback.conversationQuality.rating || 'N/A'}/10
+                                          </span>
+                                        </div>
+                                        <p className="text-xs text-slate-600">
+                                          {call.agentFeedback.conversationQuality.feedback || 'No feedback available'}
+                                        </p>
                                       </div>
-                                      <p className="text-xs text-slate-600">
-                                        {call.agentFeedback.conversationQuality?.feedback}
-                                      </p>
-                                    </div>
+                                    )}
                                   </div>
 
                                   {/* Strengths and Improvements */}
@@ -2068,56 +2070,60 @@ export default function ClientDetailPage() {
                                   {/* Sales Techniques & Customer Handling */}
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                                     {/* Sales Techniques */}
-                                    <div className="bg-white rounded-lg p-3 border border-purple-100">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <span className="text-xs font-semibold text-purple-700">Sales Techniques</span>
-                                        <span className="text-xs font-bold text-purple-600">
-                                          {call.agentFeedback.salesTechniques.rating}/10
-                                        </span>
-                                      </div>
-                                      <p className="text-xs text-slate-600 mb-2">
-                                        {call.agentFeedback.salesTechniques.feedback}
-                                      </p>
-                                      {call.agentFeedback.salesTechniques.suggestions && call.agentFeedback.salesTechniques.suggestions.length > 0 && (
-                                        <div>
-                                          <span className="text-xs font-medium text-slate-700">Suggestions:</span>
-                                          <ul className="text-xs text-slate-600 mt-1 space-y-1">
-                                            {call.agentFeedback.salesTechniques.suggestions.map((suggestion: string, index: number) => (
-                                              <li key={index} className="flex items-start space-x-2">
-                                                <span className="text-purple-500 mt-1">•</span>
-                                                <span>{suggestion}</span>
-                                              </li>
-                                            ))}
-                                          </ul>
+                                    {call.agentFeedback.salesTechniques && (
+                                      <div className="bg-white rounded-lg p-3 border border-purple-100">
+                                        <div className="flex items-center justify-between mb-2">
+                                          <span className="text-xs font-semibold text-purple-700">Sales Techniques</span>
+                                          <span className="text-xs font-bold text-purple-600">
+                                            {call.agentFeedback.salesTechniques.rating || 'N/A'}/10
+                                          </span>
                                         </div>
-                                      )}
-                                    </div>
+                                        <p className="text-xs text-slate-600 mb-2">
+                                          {call.agentFeedback.salesTechniques.feedback || 'No feedback available'}
+                                        </p>
+                                        {call.agentFeedback.salesTechniques.suggestions && call.agentFeedback.salesTechniques.suggestions.length > 0 && (
+                                          <div>
+                                            <span className="text-xs font-medium text-slate-700">Suggestions:</span>
+                                            <ul className="text-xs text-slate-600 mt-1 space-y-1">
+                                              {call.agentFeedback.salesTechniques.suggestions.map((suggestion: string, index: number) => (
+                                                <li key={index} className="flex items-start space-x-2">
+                                                  <span className="text-purple-500 mt-1">•</span>
+                                                  <span>{suggestion}</span>
+                                                </li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
 
                                     {/* Customer Handling */}
-                                    <div className="bg-white rounded-lg p-3 border border-blue-100">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <span className="text-xs font-semibold text-blue-700">Customer Handling</span>
-                                        <span className="text-xs font-bold text-blue-600">
-                                          {call.agentFeedback.customerHandling.rating}/10
-                                        </span>
-                                      </div>
-                                      <p className="text-xs text-slate-600 mb-2">
-                                        {call.agentFeedback.customerHandling.feedback}
-                                      </p>
-                                      {call.agentFeedback.customerHandling.suggestions && call.agentFeedback.customerHandling.suggestions.length > 0 && (
-                                        <div>
-                                          <span className="text-xs font-medium text-slate-700">Suggestions:</span>
-                                          <ul className="text-xs text-slate-600 mt-1 space-y-1">
-                                            {call.agentFeedback.customerHandling.suggestions.map((suggestion: string, index: number) => (
-                                              <li key={index} className="flex items-start space-x-2">
-                                                <span className="text-blue-500 mt-1">•</span>
-                                                <span>{suggestion}</span>
-                                              </li>
-                                            ))}
-                                          </ul>
+                                    {call.agentFeedback.customerHandling && (
+                                      <div className="bg-white rounded-lg p-3 border border-blue-100">
+                                        <div className="flex items-center justify-between mb-2">
+                                          <span className="text-xs font-semibold text-blue-700">Customer Handling</span>
+                                          <span className="text-xs font-bold text-blue-600">
+                                            {call.agentFeedback.customerHandling.rating || 'N/A'}/10
+                                          </span>
                                         </div>
-                                      )}
-                                    </div>
+                                        <p className="text-xs text-slate-600 mb-2">
+                                          {call.agentFeedback.customerHandling.feedback || 'No feedback available'}
+                                        </p>
+                                        {call.agentFeedback.customerHandling.suggestions && call.agentFeedback.customerHandling.suggestions.length > 0 && (
+                                          <div>
+                                            <span className="text-xs font-medium text-slate-700">Suggestions:</span>
+                                            <ul className="text-xs text-slate-600 mt-1 space-y-1">
+                                              {call.agentFeedback.customerHandling.suggestions.map((suggestion: string, index: number) => (
+                                                <li key={index} className="flex items-start space-x-2">
+                                                  <span className="text-blue-500 mt-1">•</span>
+                                                  <span>{suggestion}</span>
+                                                </li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
 
                                   {/* Next Steps */}

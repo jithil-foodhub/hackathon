@@ -10,7 +10,7 @@ import { WebSocketServer } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
 
 import { twilioWebhook } from './routes/twilio';
-import { twilioCallWebhook } from './routes/twilioWebhook';
+import { twilioCallWebhook, manualTriggerCallAnalysis, checkInProgressCalls } from './routes/twilioWebhook';
 import { twilioTranscriptionWebhook } from './routes/twilioTranscription';
 import { twilioMediaStreamWebhook } from './routes/twilioMediaStream';
 import { getAnalytics, getCallSummary } from './routes/analytics';
@@ -82,6 +82,12 @@ app.post('/webhook/twilio/call', twilioCallWebhook(wsManager, latencyProfiler));
 app.post('/webhook/twilio/transcription', twilioTranscriptionWebhook(wsManager, latencyProfiler));
 app.post('/webhook/twilio/media-stream', twilioMediaStreamWebhook(wsManager, latencyProfiler));
 app.post('/api/generate-suggestion', generateSuggestion(wsManager, latencyProfiler));
+
+// Manual call analysis trigger
+app.post('/api/calls/:callId/analyze', manualTriggerCallAnalysis(wsManager));
+
+// Check and complete stale in-progress calls
+app.post('/api/calls/check-stale', checkInProgressCalls(wsManager));
 app.post('/api/customer-simulation', customerSimulation(wsManager, latencyProfiler));
 app.post('/webhook/client-transcript', clientTranscriptWebhook(wsManager, latencyProfiler));
 

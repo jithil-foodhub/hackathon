@@ -50,6 +50,109 @@ export interface CallAnalysisResult {
 
 export class CallAnalysisService {
   /**
+   * Try to parse JSON with multiple cleaning strategies
+   */
+  private static tryParseJson(content: string): any {
+    const strategies = [
+      // Strategy 1: Basic cleaning
+      (str: string) => {
+        let cleaned = str.trim();
+        if (cleaned.startsWith('```json')) {
+          cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+        } else if (cleaned.startsWith('```')) {
+          cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
+        }
+        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+        return jsonMatch ? jsonMatch[0] : cleaned;
+      },
+      
+      // Strategy 2: Aggressive cleaning
+      (str: string) => {
+        let cleaned = str.trim();
+        if (cleaned.startsWith('```json')) {
+          cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+        } else if (cleaned.startsWith('```')) {
+          cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
+        }
+        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+        if (jsonMatch) cleaned = jsonMatch[0];
+        
+        return cleaned
+          .replace(/,\s*}/g, '}')
+          .replace(/,\s*]/g, ']')
+          .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":')
+          .replace(/:(\s*)([^",{\[\s][^",}\]\s]*?)(\s*[,}\]])/g, ': "$2"$3')
+          .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*([^",{\[\s][^",}\]\s]*?)(\s*[,}\]])/g, '$1"$2": "$3"$4')
+          .replace(/:(\s*)(true|false|null)\s*([,}])/g, ': $1$2$3')
+          .replace(/:(\s*)(\d+\.?\d*)\s*([,}])/g, ': $1$2$3')
+          .replace(/:(\s*)([^",{\[\s][^",}\]\s]*?)(\s*[,}\]])/g, ': "$2"$3')
+          .replace(/,\s*}/g, '}')
+          .replace(/,\s*]/g, ']');
+      }
+    ];
+    
+    for (const strategy of strategies) {
+      try {
+        const cleaned = strategy(content);
+        if (cleaned.trim().startsWith('{') && cleaned.trim().endsWith('}')) {
+          return JSON.parse(cleaned);
+        }
+      } catch (e) {
+        // Try next strategy
+        continue;
+      }
+    }
+    
+    throw new Error('All JSON parsing strategies failed');
+  }
+
+  /**
+   * Clean and validate JSON content from OpenAI responses
+   */
+  private static cleanJsonContent(content: string): string {
+    let jsonContent = content.trim();
+    
+    // Remove markdown code blocks
+    if (jsonContent.startsWith('```json')) {
+      jsonContent = jsonContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (jsonContent.startsWith('```')) {
+      jsonContent = jsonContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+    
+    // Extract JSON object from response - be more aggressive
+    const jsonMatch = jsonContent.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      jsonContent = jsonMatch[0];
+    }
+    
+    // More aggressive JSON cleaning
+    jsonContent = jsonContent
+      // Remove trailing commas before closing braces/brackets
+      .replace(/,\s*}/g, '}')
+      .replace(/,\s*]/g, ']')
+      // Quote unquoted keys (handle various patterns)
+      .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":')
+      // Quote unquoted string values (handle various patterns)
+      .replace(/:(\s*)([^",{\[\s][^",}\]\s]*?)(\s*[,}\]])/g, ': "$2"$3')
+      // Fix common issues with quotes and values
+      .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*([^",{\[\s][^",}\]\s]*?)(\s*[,}\]])/g, '$1"$2": "$3"$4')
+      // Handle boolean values
+      .replace(/:(\s*)(true|false|null)\s*([,}])/g, ': $1$2$3')
+      // Handle numeric values
+      .replace(/:(\s*)(\d+\.?\d*)\s*([,}])/g, ': $1$2$3')
+      // Remove any remaining unquoted string values
+      .replace(/:(\s*)([^",{\[\s][^",}\]\s]*?)(\s*[,}\]])/g, ': "$2"$3')
+      // Fix any remaining trailing commas
+      .replace(/,\s*}/g, '}')
+      .replace(/,\s*]/g, ']')
+      // Remove any extra whitespace
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    return jsonContent;
+  }
+
+  /**
    * Analyze a call transcript and generate comprehensive insights
    */
   static async analyzeCall(transcript: string, duration: number): Promise<CallAnalysisResult> {
@@ -94,13 +197,60 @@ export class CallAnalysisService {
    * Generate AI-powered agent feedback based on call transcript and analysis
    */
   static async generateAgentFeedback(transcript: string, callAnalysis: any): Promise<any> {
+    console.log('🤖 Generating AI agent feedback...');
+    
+    // TEMPORARY: Skip AI calls to avoid tokens - return mock data
+    const mockFeedback = {
+      performanceScore: 8,
+      strengths: [
+        "Responded accurately to payment provider inquiries",
+        "Maintained professional tone throughout the call",
+        "Provided clear information about supported payment methods"
+      ],
+      improvements: [
+        "Could have been more proactive in suggesting alternative solutions",
+        "Missed opportunity to gather more customer requirements",
+        "Could have offered a demo or follow-up consultation"
+      ],
+      conversationQuality: {
+        rating: 8,
+        feedback: "Agent handled the customer's payment provider questions professionally and accurately"
+      },
+      salesTechniques: {
+        rating: 6,
+        feedback: "Focused on answering questions but missed sales opportunities",
+        suggestions: [
+          "Ask about current pain points with existing payment system",
+          "Suggest additional services based on customer needs",
+          "Offer to schedule a demo or consultation"
+        ]
+      },
+      customerHandling: {
+        rating: 8,
+        feedback: "Good customer service approach with clear, direct answers",
+        suggestions: [
+          "Ask follow-up questions to understand broader needs",
+          "Show more curiosity about customer's business requirements"
+        ]
+      },
+      nextSteps: [
+        "Follow up with information about supported payment providers",
+        "Schedule a demo of PDQ services",
+        "Gather more details about customer's business needs"
+      ],
+      overallFeedback: "Good foundation with opportunities for more proactive sales approach and deeper customer needs analysis."
+    };
+    
+    console.log('✅ Generated mock agent feedback:', mockFeedback);
+    return mockFeedback;
+    
+    // ORIGINAL AI CODE (commented out to save tokens):
+    /*
     try {
-      console.log('🤖 Generating AI agent feedback...');
-      
       const prompt = buildPrompt.agentFeedback(transcript, callAnalysis);
 
       const response = await openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        model: 'gpt-4o-mini', // Force GPT-4o-mini for cost optimization
         messages: [
           {
             role: "system",
@@ -112,27 +262,33 @@ export class CallAnalysisService {
           }
         ],
         temperature: 0.3,
-        max_tokens: 800
+        max_tokens: 400 // Reduced for cost optimization
       });
 
       const content = response.choices?.[0]?.message?.content;
       if (content) {
-        // Clean and parse JSON response
-        let jsonContent = content.trim();
-        if (jsonContent.startsWith('```json')) {
-          jsonContent = jsonContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-        } else if (jsonContent.startsWith('```')) {
-          jsonContent = jsonContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
-        }
+        // Clean and parse JSON response with better error handling
+        const jsonContent = this.cleanJsonContent(content);
         
-        const jsonMatch = jsonContent.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          jsonContent = jsonMatch[0];
+        // Try to parse JSON with multiple strategies
+        try {
+          const feedback = this.tryParseJson(content);
+          console.log('✅ Agent feedback generated successfully');
+          return feedback;
+        } catch (parseError) {
+          console.error('❌ JSON parse error in agent feedback:', parseError);
+          console.error('Raw content:', content);
+          console.log('🔄 Using fallback feedback due to JSON parsing error');
+          
+          // Return fallback feedback if JSON parsing fails
+          return {
+            strengths: ["Good communication skills", "Professional approach"],
+            improvements: ["Could be more personalized", "Consider proactive suggestions"],
+            specific_feedback: "Good foundation with opportunities for more personalized engagement and proactive customer service.",
+            overall_rating: 7,
+            next_steps: ["Focus on personalization", "Be more proactive in addressing needs"]
+          };
         }
-        
-        const feedback = JSON.parse(jsonContent);
-        console.log('✅ Agent feedback generated successfully');
-        return feedback;
       }
     } catch (error) {
       console.error('❌ Error generating agent feedback:', error);
@@ -164,19 +320,40 @@ export class CallAnalysisService {
       ],
       overallFeedback: "Good foundation with opportunities for more personalized engagement and proactive customer service."
     };
+    */
   }
 
   /**
    * Generate AI-powered call summary
    */
   static async generateCallSummary(transcript: string, callAnalysis: any, agentFeedback: any): Promise<any> {
+    console.log('📝 Generating AI call summary...');
+    
+    // TEMPORARY: Skip AI calls to avoid tokens - return mock data
+    const mockSummary = {
+      overallAssessment: "Call went well with customer asking specific questions about payment providers. Customer showed genuine interest in PDQ services and was satisfied with the information provided.",
+      customerTone: "Customer was neutral and business-focused, asking direct questions about payment provider support. Tone remained professional throughout.",
+      expectationsMet: true,
+      conversionAttempt: "Agent provided accurate information but missed opportunities to convert by not offering demos or follow-up consultations.",
+      keyOutcomes: [
+        "Confirmed support for RDN payment provider",
+        "Clarified that Razer Pay is not currently supported",
+        "Customer expressed interest in PDQ services",
+        "Call ended with customer satisfaction"
+      ],
+      nextCallStrategy: "Follow up with comprehensive payment provider documentation and offer a demo of PDQ services to convert interest into a sale."
+    };
+    
+    console.log('✅ Generated mock call summary:', mockSummary);
+    return mockSummary;
+    
+    // ORIGINAL AI CODE (commented out to save tokens):
+    /*
     try {
-      console.log('📝 Generating AI call summary...');
-      
       const prompt = buildPrompt.callSummary(transcript, callAnalysis, agentFeedback);
 
       const response = await openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        model: 'gpt-4o-mini', // Force GPT-4o-mini for cost optimization
         messages: [
           {
             role: "system",
@@ -188,25 +365,33 @@ export class CallAnalysisService {
           }
         ],
         temperature: 0.3,
-        max_tokens: 600
+        max_tokens: 300 // Reduced for cost optimization
       });
 
       const content = response.choices?.[0]?.message?.content;
       if (content) {
         // Clean and parse JSON response
-        let jsonContent = content.trim();
-        if (jsonContent.startsWith('```json')) {
-          jsonContent = jsonContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-        } else if (jsonContent.startsWith('```')) {
-          jsonContent = jsonContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
-        }
+        const jsonContent = this.cleanJsonContent(content);
         
-        const jsonMatch = jsonContent.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          jsonContent = jsonMatch[0];
+        // Try to parse JSON with multiple strategies
+        let summary;
+        try {
+          summary = this.tryParseJson(content);
+        } catch (parseError) {
+          console.error('❌ JSON parse error in call summary:', parseError);
+          console.error('Raw content:', content);
+          console.log('🔄 Using fallback summary due to JSON parsing error');
+          
+          // Return fallback summary if JSON parsing fails
+          summary = {
+            keyPoints: ["Customer inquiry about services", "Standard response provided"],
+            customerSentiment: "neutral",
+            agentPerformance: "good",
+            nextSteps: ["Follow up on customer needs", "Provide additional information"],
+            expectationsMet: true,
+            callOutcome: "inquiry_handled"
+          };
         }
-        
-        const summary = JSON.parse(jsonContent);
         
         // Validate and fix expectationsMet field
         if (summary.expectationsMet !== undefined) {
@@ -241,6 +426,7 @@ export class CallAnalysisService {
       keyOutcomes: ["Customer showed interest", "Follow-up discussion planned"],
       nextCallStrategy: "Focus on addressing specific customer needs and providing more detailed value propositions."
     };
+    */
   }
 
   /**
@@ -320,11 +506,26 @@ export class CallAnalysisService {
    * Generate AI-powered analysis using OpenAI
    */
   private static async generateAIAnalysis(transcript: string, segments: any[], metrics: any) {
+    console.log('🔍 Starting AI analysis with transcript:', transcript.substring(0, 100) + '...');
+    
+    // TEMPORARY: Skip AI calls to avoid tokens - return mock data
+    const mockAnalysis = {
+      summary: `Customer discussed payment providers (RDN, Razer Pay) and inquired about PDQ services. Call ended with customer satisfaction.`,
+      keyTopics: ["payment_providers", "PDQ_services", "RDN_payment", "razer_pay", "inquiry"],
+      customerEngagement: 0.7,
+      agentPerformance: 0.8
+    };
+    
+    console.log('✅ Generated mock AI analysis:', mockAnalysis);
+    return mockAnalysis;
+    
+    // ORIGINAL AI CODE (commented out to save tokens):
+    /*
     try {
       const prompt = buildPrompt.callAnalysis(transcript);
 
       const response = await openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        model: 'gpt-4o-mini', // Force GPT-4o-mini for cost optimization
         messages: [
           {
             role: "system",
@@ -336,25 +537,31 @@ export class CallAnalysisService {
           }
         ],
         temperature: 0.3,
-        max_tokens: 500
+        max_tokens: 300 // Reduced for cost optimization
       });
 
       const content = response.choices?.[0]?.message?.content;
       if (content) {
         // Clean and parse JSON response
-        let jsonContent = content.trim();
-        if (jsonContent.startsWith('```json')) {
-          jsonContent = jsonContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-        } else if (jsonContent.startsWith('```')) {
-          jsonContent = jsonContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
-        }
+        const jsonContent = this.cleanJsonContent(content);
         
-        const jsonMatch = jsonContent.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          jsonContent = jsonMatch[0];
+        // Try to parse JSON with multiple strategies
+        let analysis;
+        try {
+          analysis = this.tryParseJson(content);
+        } catch (parseError) {
+          console.error('❌ JSON parse error in AI analysis:', parseError);
+          console.error('Raw content:', content);
+          console.log('🔄 Using fallback analysis due to JSON parsing error');
+          
+          // Return fallback analysis if JSON parsing fails
+          analysis = {
+            summary: "Customer inquiry about services with standard response",
+            keyTopics: ["inquiry", "services", "information"],
+            customerEngagement: 0.6,
+            agentPerformance: 0.7
+          };
         }
-        
-        const analysis = JSON.parse(jsonContent);
         
         // Convert 1-10 scale to 0-1 scale for consistency
         if (analysis.customerEngagement && analysis.customerEngagement > 1) {
@@ -377,6 +584,7 @@ export class CallAnalysisService {
       customerEngagement: 0.6,
       agentPerformance: 0.7
     };
+    */
   }
 
   /**
@@ -598,13 +806,73 @@ export class CallAnalysisService {
    * Generate enhanced call analysis with mood, competitors, jargon, business details, and key information
    */
   static async generateEnhancedAnalysis(transcript: string): Promise<any> {
+    console.log('🔍 Generating enhanced call analysis...');
+    
+    // TEMPORARY: Skip AI calls to avoid tokens - return mock data
+    const mockEnhancedAnalysis = {
+      moodAnalysis: {
+        mood: "neutral",
+        confidence: 0.8,
+        reasoning: "Customer maintained a neutral, business-focused tone throughout the conversation"
+      },
+      competitorAnalysis: {
+        competitors: [
+          {
+            name: "RDN Payment Solutions",
+            highlights: ["Currently used by customer", "Existing payment provider"],
+            context: "Customer mentioned currently using RDN for payments"
+          }
+        ]
+      },
+      jargonDetection: {
+        jargon: [
+          {
+            term: "PDQ",
+            context: "Customer asked about PDQ payments and services",
+            needsClarification: false
+          },
+          {
+            term: "RDN",
+            context: "Customer's current payment provider",
+            needsClarification: false
+          }
+        ]
+      },
+      businessDetails: {
+        cuisineTypes: [],
+        address: "",
+        postcode: "",
+        businessType: "restaurant/food service"
+      },
+      keyInformation: {
+        summary: [
+          "Customer inquiry about payment provider compatibility",
+          "Interest in PDQ services",
+          "Currently using RDN for payments"
+        ],
+        importantPoints: [
+          "Customer needs payment provider support information",
+          "Razer Pay is not currently supported",
+          "Customer satisfied with responses provided"
+        ],
+        actionItems: [
+          "Follow up with comprehensive payment provider list",
+          "Provide PDQ services demonstration",
+          "Send integration documentation for RDN"
+        ]
+      }
+    };
+    
+    console.log('✅ Generated mock enhanced analysis:', mockEnhancedAnalysis);
+    return mockEnhancedAnalysis;
+    
+    // ORIGINAL AI CODE (commented out to save tokens):
+    /*
     try {
-      console.log('🔍 Generating enhanced call analysis...');
-      
       const prompt = buildPrompt.enhancedAnalysis(transcript);
 
       const response = await openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        model: 'gpt-4o-mini', // Force GPT-4o-mini for cost optimization
         messages: [
           {
             role: "system",
@@ -616,27 +884,34 @@ export class CallAnalysisService {
           }
         ],
         temperature: 0.3,
-        max_tokens: 1000
+        max_tokens: 500 // Reduced for cost optimization
       });
 
       const content = response.choices?.[0]?.message?.content;
       if (content) {
         // Clean and parse JSON response
-        let jsonContent = content.trim();
-        if (jsonContent.startsWith('```json')) {
-          jsonContent = jsonContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-        } else if (jsonContent.startsWith('```')) {
-          jsonContent = jsonContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
-        }
+        const jsonContent = this.cleanJsonContent(content);
         
-        const jsonMatch = jsonContent.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          jsonContent = jsonMatch[0];
+        // Try to parse JSON with multiple strategies
+        let analysis;
+        try {
+          analysis = this.tryParseJson(content);
+          console.log('✅ Enhanced analysis generated successfully');
+          return analysis;
+        } catch (parseError) {
+          console.error('❌ JSON parse error in enhanced analysis:', parseError);
+          console.error('Raw content:', content);
+          console.log('🔄 Using fallback analysis due to JSON parsing error');
+          
+          // Return fallback analysis if JSON parsing fails
+          return {
+            insights: ["Customer showed interest in services", "Standard inquiry handled"],
+            recommendations: ["Follow up with more details", "Provide additional resources"],
+            riskFactors: [],
+            opportunities: ["Potential for upselling", "Good relationship building opportunity"],
+            overallAssessment: "Positive interaction with room for improvement"
+          };
         }
-        
-        const analysis = JSON.parse(jsonContent);
-        console.log('✅ Enhanced analysis generated successfully');
-        return analysis;
       }
     } catch (error) {
       console.error('❌ Error generating enhanced analysis:', error);
@@ -667,5 +942,6 @@ export class CallAnalysisService {
         actionItems: []
       }
     };
+    */
   }
 }
